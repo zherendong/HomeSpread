@@ -1,0 +1,120 @@
+# HomeBoard — iPhone 홈화면을 PC 한 화면에서 보고 편집한다.
+# Copyright (C) 2026 HomeBoard contributors
+#
+# 이 프로그램은 자유 소프트웨어입니다. 자유 소프트웨어 재단이 발표한 GNU 일반 공중
+# 사용 허가서 3판 또는 (선택에 따라) 그 이후 판의 조건에 따라 재배포하거나 수정할
+# 수 있습니다.
+#
+# 이 프로그램은 유용하게 쓰이기를 바라며 배포되지만 **어떠한 보증도 없습니다** —
+# 상품성이나 특정 목적 적합성에 대한 묵시적 보증조차 없습니다. 자세한 것은 GNU 일반
+# 공중 사용 허가서를 보십시오. 원문은 이 프로그램과 함께 `LICENSE` 로 실려 있고,
+# <https://www.gnu.org/licenses/> 에서도 볼 수 있습니다.
+
+"""앱 진입점.
+
+로그를 먼저 연다. 창이 뜨기 전에 실패하는 경우(PySide6 미설치, 드라이버 문제)가
+가장 알아내기 어려우므로, 진단은 화면이 아니라 파일에 남는 것이 기본이다 — 사용자는
+"안 떠요"라고만 말할 수 있고, 그때 우리가 볼 수 있는 것은 `logs/` 뿐이다.
+
+다만 **로그를 열 자리조차 없는 경우**가 하나 있다. exe 를 쓰기 권한이 없는 폴더에
+두고 실행한 경우다. 이때는 로그에 적어도 아무도 볼 수 없으므로, 그 한 가지만은
+창으로 말한다.
+"""
+
+from __future__ import annotations
+
+import logging
+import sys
+from pathlib import Path
+
+_SRC = Path(__file__).resolve().parents[1]
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
+
+from ipsm import i18n  # noqa: E402
+from ipsm.i18n import tr  # noqa: E402
+from ipsm.paths import ensure_ready  # noqa: E402
+from ipsm import product  # noqa: E402
+from ipsm.version import VERSION_TEXT, version_line  # noqa: E402
+
+log = logging.getLogger("app")
+
+
+def _close_splash() -> None:
+    """시작 그림을 내린다.
+
+    그림은 PyInstaller 부트로더가 띄운 것이라 Qt 가 모른다 — 우리가 닫아 주지
+    않으면 창 위에 그대로 남는다. 소스에서 실행할 때는 `pyi_splash` 자체가 없으므로
+    조용히 지나간다.
+    """
+    try:
+        import pyi_splash  # type: ignore[import-not-found]
+    except ImportError:
+        return
+    try:
+        pyi_splash.close()
+    except Exception:  # pragma: no cover - 그림 닫기 실패로 앱을 멈출 이유는 없다
+        log.debug("시작 그림을 닫는 중 예외", exc_info=True)
+
+
+def _fatal(message: str) -> int:
+    """로그를 쓸 수 없는 상황을 사용자에게 알린다."""
+    # 그림을 먼저 내린다. 그림은 늘 맨 위에 뜨므로, 살려 두면 오류 상자가 그 뒤에
+    # 숨어 사용자는 멈춘 시작 화면만 보게 된다.
+    _close_splash()
+    print(message)
+    try:
+        from PySide6.QtWidgets import QApplication, QMessageBox
+
+        app = QApplication.instance() or QApplication(sys.argv)
+        QMessageBox.critical(
+            None, tr("시작할 수 없습니다"), message
+        )
+        del app
+    except Exception:  # Qt 조차 없으면 콘솔 출력이 전부다
+        pass
+    return 3
+
+
+def main() -> int:
+    # 언어를 가장 먼저 고른다. 시작하다 실패했을 때 뜨는 말도 사용자의 말이어야 한다.
+    # 설정을 못 읽어도(자리가 없거나 깨졌어도) PC 언어로 되돌아가므로 여기서 막히지 않는다.
+    language = i18n.start()
+
+    # exe 옆에 logs · backups · cache 를 만들어 둔다. 기기에 손대기 전에 확인한다.
+    root, problem = ensure_ready()
+    if problem:
+        return _fatal(problem)
+
+    from ipsm.logging_setup import start_session
+
+    session = start_session(root, name="app")
+    # 버전을 가장 먼저 적는다. "고쳤는데 그대로예요"의 절반은 낡은 exe 를 실행한
+    # 것이고, 그것을 가려낼 수 있는 곳은 이 한 줄뿐이다.
+    log.info("%s", version_line())
+    log.info("자료 폴더: %s", root)
+    log.info("언어: %s", language)
+
+    try:
+        from PySide6.QtWidgets import QApplication
+    except ImportError as exc:
+        log.error("PySide6 를 불러올 수 없다: %r", exc)
+        print(tr("PySide6 가 설치되어 있지 않습니다. install.bat 을 먼저 실행해 주세요."))
+        return 2
+
+    from ipsm.ui.main_window import MainWindow
+
+    app = QApplication(sys.argv)
+    app.setApplicationName(product.NAME)
+    app.setApplicationVersion(VERSION_TEXT)
+    window = MainWindow(root)
+    # 창을 먼저 만들고, 보이기 직전에 그림을 내린다. 순서를 뒤집으면 그림이 사라진
+    # 뒤 창이 뜰 때까지 빈 바탕화면이 남는다.
+    _close_splash()
+    window.show()
+    log.info("창을 열었다. 로그: %s", session.log_path)
+    return app.exec()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

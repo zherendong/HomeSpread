@@ -1,0 +1,47 @@
+# pymobiledevice3 는 Windows에서 그대로 설치하면 실패한다.
+# lzfse 확장이 Microsoft Visual C++ 빌드 도구를 요구하는데, 이 프로젝트가 쓰는
+# SpringBoard 서비스에는 lzfse 가 전혀 필요 없다 (펌웨어 이미지 압축 해제용).
+#
+# 그래서 설치는 install.ps1 을 쓴다. 이 파일은 무엇이 필요한지의 기록이다.
+#
+#   .\.venv\Scripts\python.exe -m pip install --no-deps pymobiledevice3
+#   그다음 아래 목록을 하나씩 설치 (하나가 실패해도 나머지는 설치되도록)
+
+pymobiledevice3>=4.0        # --no-deps 로 설치할 것
+construct
+click
+cryptography
+pyasn1
+pygments
+hexdump
+pyusb
+requests
+tqdm
+daemonize
+inquirer3
+pykdebugparser
+arrow
+developer-disk-image
+opack2
+qh3
+parameter-decorators
+prompt-toolkit
+psutil
+zeroconf
+python-pcapng
+typer-injector
+xonsh
+gpxpy
+pygnuutils
+pywin32                     # Windows 전용: win32security
+
+# 화면 (ADR-001). PySide6 전체 대신 Essentials 를 쓴다 — WebEngine·3D·Charts 는
+# 이 앱에 쓰이지 않는데 내려받기만 1GB 가까이 늘어난다.
+PySide6-Essentials>=6.7
+
+# 설치하지 않는 것 (이유):
+#   lzfse           C 확장 빌드 필요 · 펌웨어 압축 해제용이라 우리는 쓰지 않는다
+#   ipsw_parser     펌웨어 분석용
+#   pyimg4          펌웨어 이미지용
+#   sslpsk-pmd3     Python 3.13 미지원 (3.12 이하 전용)
+#   pyiosbackup     아이튠즈 백업 파싱용
