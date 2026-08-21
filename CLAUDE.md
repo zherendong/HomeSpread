@@ -79,6 +79,20 @@ Store. 방침이 코드와 어긋나면 그것은 곧 거짓말이므로, 시험
 `paths.data_root()` 가 가리키는 자리에 백업이 그대로 남는지 실제 패키지로 확인해야 한다.
 사용자가 찾을 수 없는 곳에 백업이 숨는 것이 가장 나쁜 결말이다. `[미검증]`
 
+**시작 시간은 포장이 정한다(2026-08-21):** 단일 exe 는 실행할 때마다 자기 안 72MB 를
+임시 폴더에 푼다. 그 시간이 **매번** 붙는다 — 실측 21초 중 16.5초가 그것이고, 그 구간에는
+우리 파이썬 코드가 시작조차 하지 않아 Qt 로는 아무것도 띄울 수 없다. 폴더로 내면 풀 것이
+없어 **2.3초**다. 대가는 건네줄 것이 파일 하나가 아니라 폴더 하나가 되는 것과 펼친 크기
+72MB → 169MB. 남은 몇 초는 부트로더가 띄우는 시작 그림이 채운다(0.3초). 그림은 Tk 로
+그려지므로 `tkinter` 를 제외 목록에 되돌리면 조용히 사라진다. 스토어에 올릴 MSIX 도 이
+모양을 요구하므로 되돌릴 이유가 없고, 되돌아가면 시험이 막는다.
+
+**소스 공개는 GPL 의 의무이자 스토어의 준비물이다(2026-08-21):** 저장소 주소 하나가
+세 자리를 동시에 채운다 — `product.SOURCE_URL`(GPL 이 요구하는 소스에 닿을 길),
+Partner Center 의 개인정보 처리방침 URL(`PRIVACY.md`), 그리고 배포본을 두는 자리.
+대신 올려서는 안 되는 것이 있다: `logs/`·`backups/`·`cache/` 는 전부 **실기기에서 나온
+사용자 자료**다. `.gitignore` 가 이 셋과 `dist*/`·`build*/`·`settings.json` 을 막는다.
+
 **변경 이력:**
 | 날짜 | 변경 내용 | 대상 | 사유 |
 |------|----------|------|------|
@@ -110,3 +124,7 @@ Store. 방침이 코드와 어긋나면 그것은 곧 거짓말이므로, 시험
 | 2026-08-20 | **GPL-3.0-or-later 로 공개** — 라이선스 원문·고지 목록·정보 창 | LICENSE, THIRD-PARTY-NOTICES.md, third_party_licenses/, scripts/gen_notices.py, src/ipsm/ui/about.py, paths.bundled, HomeBoard.spec datas | 소스를 공개하기로 했으므로 `pymobiledevice3` 의 GPL 이 걸림돌이 아니라 그냥 우리 라이선스가 된다. 고지 목록은 손으로 적지 않는다 — `pip install` 한 번에 낡고, 낡은 고지는 고지하지 않은 것과 같다 |
 | 2026-08-20 | 개인정보 처리방침 — 쓰고, exe 에 싣고, 정보 창에서 읽는다 | PRIVACY.md, ui/about.py, HomeBoard.spec, tests/test_core.py | 정책 10.5.1 이 Win32 제품에 언제나 요구한다. 방침이 코드와 어긋나지 않도록 시험이 원문과 `settings_path()` 를 대조한다 |
 | 2026-08-20 | 스토어 제출 점검표 | _workspace/05_store-submission-checklist.md | 확인된 것(GPL·후원·개인 계정)과 남은 것(MSIX 루프백·자료 폴더·SOURCE_URL)을 갈라 적었다. 미확인 위에 제출 결정을 세우지 않기 위해 |
+| 2026-08-21 | 기기 라이브러리를 창이 뜬 뒤에 들인다 | ui/worker.py `_load_device_layer`, tests/test_core.py | 창이 뜨기까지 `pymobiledevice3` 를 기다렸다(소스 실행 8.5초 → 0.36초). 루프를 **먼저** 만들어야 들이는 도중 창이 닫혀도 `shutdown()` 이 갈 곳이 있다 |
+| 2026-08-21 | 시작 그림 — 창이 뜨기 전 몇 초를 채운다 | scripts/make_splash.py(신규), assets/splash.png, HomeBoard.spec `Splash`, app.py `_close_splash` | 그 구간에는 파이썬조차 시작 전이라 Qt 로는 띄울 수 없다. 부트로더가 직접 띄우는 Tk 그림만이 답 |
+| 2026-08-21 | **폴더 배포로 전환** (단일 exe → `dist\HomeBoard\`) | HomeBoard.spec `COLLECT`·`exclude_binaries`, build_exe.bat, paths.py, README.md | 21초 → 2.3초. 21초의 16.5초는 매 실행마다 자기 안을 푸는 시간이었다. MSIX 도 이 모양을 요구한다 |
+| 2026-08-21 | git 저장소 시작 (`main`, 157개 파일) | .gitignore, 전체 | 공개 저장소 주소가 `SOURCE_URL`·방침 URL·배포 자리를 한 번에 채운다. 기기 자료(`logs/`·`backups/`·`cache/`)는 막고, 주석의 예시 UDID 도 지웠다 |

@@ -1677,8 +1677,8 @@ def test_opening_the_window_does_not_wait_for_the_device_library():
     assert out.stdout.strip() == "False", "창 모듈이 기기 라이브러리를 끌고 들어온다"
 
 
-def test_the_splash_covers_the_unpacking_seconds():
-    """단일 exe 가 자기 안을 푸는 몇 초 동안 화면이 비어 있으면 안 된다.
+def test_the_splash_covers_the_seconds_before_the_window():
+    """창이 뜨기 전 몇 초 동안 화면이 비어 있으면 안 된다.
 
     그 구간에는 파이썬조차 시작 전이라 Qt 로는 아무것도 띄울 수 없다. 부트로더가
     직접 띄우는 그림만이 답이고, 그 그림은 Tk 로 그려진다 — 그래서 `tkinter` 를
@@ -1686,7 +1686,7 @@ def test_the_splash_covers_the_unpacking_seconds():
     """
     spec = (ROOT / "HomeBoard.spec").read_text(encoding="utf-8")
     assert "Splash(" in spec, "시작 그림이 없다"
-    assert "splash.binaries" in spec, "그림에 필요한 파일이 exe 에 실리지 않는다"
+    assert "splash.binaries" in spec, "그림에 필요한 파일이 함께 실리지 않는다"
     assert '"tkinter",' not in spec, "tkinter 를 제외하면 시작 그림이 뜨지 않는다"
     assert (ROOT / "assets" / "splash.png").exists(), "그림 파일이 없다"
 
@@ -1694,6 +1694,22 @@ def test_the_splash_covers_the_unpacking_seconds():
     assert "_close_splash()" in app_src
     # 창을 보이기 '전에' 내려야 빈 바탕화면이 비치지 않는다.
     assert app_src.index("_close_splash()\n    window.show()") > 0
+
+
+def test_the_program_ships_as_a_folder_not_one_file():
+    """단일 exe 는 실행할 때마다 자기 안 72MB 를 임시 폴더에 푼다 — 매번 16.5초다.
+
+    실측(2026-08-21): 단일 exe 21초 · 폴더 배포 2.9초. 되돌리면 그 시간이 그대로
+    돌아오는데, 명세만 보아서는 되돌아간 줄 모른다. 그래서 여기서 붙잡는다.
+    스토어에 올릴 MSIX 도 이 모양을 요구하므로 되돌릴 이유가 더 없다.
+    """
+    spec = (ROOT / "HomeBoard.spec").read_text(encoding="utf-8")
+    assert "COLLECT(" in spec, "폴더 배포가 아니다 — 실행할 때마다 압축을 푼다"
+    assert "exclude_binaries=True" in spec, "EXE 가 아직 모든 것을 안고 있다"
+
+    bat = (ROOT / "build_exe.bat").read_text(encoding="cp949")
+    # 안내문이 배포 모양과 어긋나면, 사용자는 있지도 않은 파일을 찾는다.
+    assert r"dist\HomeBoard\HomeBoard.exe" in bat
 
 
 def test_the_privacy_policy_tells_the_whole_truth_in_both_languages():
