@@ -1777,6 +1777,31 @@ def test_the_source_offer_points_somewhere_real():
     assert (ROOT / "PRIVACY.md").exists()
 
 
+def test_the_device_verifier_stays_read_only_without_apply():
+    """검증기는 `--apply` 를 붙였을 때만 기기에 쓴다.
+
+    이 도구는 사용자의 진짜 홈화면을 재료로 삼는다. 읽기만 하는 줄 알고 돌렸는데
+    썼다면, 그것은 도구가 아니라 사고다. 그래서 쓰기를 부르는 자리를 `stage_two`
+    안으로만 두고, 그 함수는 `args.apply` 아래에서만 불린다 — 두 성질을 함께
+    지켜야 "기본은 읽기 전용"이 성립한다.
+    """
+    src = (ROOT / "scripts" / "verify_edits.py").read_text(encoding="utf-8")
+
+    stage_two_at = src.index("async def stage_two(")
+    writes = [i for i in range(len(src)) if src.startswith("set_icon_state(", i)]
+    assert writes, "쓰기를 부르는 자리가 아예 없다 — 2단계가 사라졌는가"
+    for at in writes:
+        assert at > stage_two_at, "stage_two 바깥에서 기기에 쓴다"
+
+    # stage_two 를 부르는 곳은 --apply 아래여야 한다.
+    call_at = src.index("await stage_two(")
+    guard_at = src.index("if args.apply:")
+    assert guard_at < call_at, "--apply 검사 없이 2단계를 부른다"
+
+    # 기본값이 켜져 있으면 플래그가 있으나 마나다.
+    assert '"--apply", action="store_true"' in src
+
+
 def test_the_privacy_policy_tells_the_whole_truth_in_both_languages():
     """방침이 실제 동작과 어긋나면 스토어 심사에서 걸리고, 무엇보다 거짓말이 된다.
 
