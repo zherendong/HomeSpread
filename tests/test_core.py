@@ -30,6 +30,7 @@ from ipsm.icons import IconStore, wanted_icons  # noqa: E402
 from ipsm.layout import LayoutDocument, LayoutError  # noqa: E402
 from ipsm.paths import DATA_DIRS, data_root, ensure_ready  # noqa: E402
 from ipsm.logging_setup import prune_sessions, start_session  # noqa: E402
+from ipsm import product  # noqa: E402
 
 # 실제 iconState 를 흉내낸 표본. 독 + 2페이지 + 폴더 + 위젯(우리가 모르는 것).
 SAMPLE = [
@@ -1760,6 +1761,20 @@ def test_the_program_ships_as_a_folder_not_one_file():
     bat = (ROOT / "build_exe.bat").read_text(encoding="cp949")
     # 안내문이 배포 모양과 어긋나면, 사용자는 있지도 않은 파일을 찾는다.
     assert r"dist\HomeBoard\HomeBoard.exe" in bat
+
+
+def test_the_source_offer_points_somewhere_real():
+    """GPL 은 실행 파일을 건네준 사람에게 소스에 닿을 길을 함께 주기를 요구한다.
+
+    비어 있으면 정보 창이 "배포한 사람에게 요청하세요"라고만 말한다 — 손으로 건넬
+    때는 그것도 답이지만, 스토어에 올리는 순간 건넬 사람이 없어진다. 방침 URL 도
+    같은 주소에서 나오므로, 여기가 비면 Partner Center 의 필수 칸까지 함께 빈다.
+    """
+    assert product.SOURCE_URL.startswith("https://"), "소스 주소가 비었거나 https 가 아니다"
+    assert product.PRIVACY_URL.startswith(product.SOURCE_URL), "방침 주소가 소스와 다른 곳을 가리킨다"
+    assert product.PRIVACY_URL.endswith("PRIVACY.md")
+    # 주소가 가리키는 파일이 실제로 저장소에 있어야 한다. 없으면 404 를 배포하는 셈이다.
+    assert (ROOT / "PRIVACY.md").exists()
 
 
 def test_the_privacy_policy_tells_the_whole_truth_in_both_languages():

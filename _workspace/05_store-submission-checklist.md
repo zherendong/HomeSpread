@@ -56,9 +56,10 @@
 
 ## 4. 올리기 전에 반드시 끝내야 하는 것
 
-1. **`product.SOURCE_URL` 채우기** — 공개 저장소 주소. GPL 은 실행 파일을 받은 사람에게
-   소스에 닿을 길을 주기를 요구한다. 지금은 비어 있고, 비어 있으면 정보 창이 "배포한
-   사람에게 요청하라"고만 말한다. 스토어 배포는 그 상태로 하면 안 된다
+1. ~~**`product.SOURCE_URL` 채우기**~~ — 끝났다 (2026-08-21).
+   `https://github.com/humanlyj/HomeBoard` 를 `product.SOURCE_URL` 에 적었고, 정보 창이
+   링크로 보여준다. 같은 주소가 Partner Center 의 개인정보 처리방침 칸도 채운다
+   (`product.PRIVACY_URL` → `.../blob/main/PRIVACY.md`)
 2. **MSIX 실제 패키지로 루프백·백업 쓰기 시험**
 3. **다른 기기·iOS 판에서 한 번 더 왕복** — 지금 확인된 것은 iPhone 14 / iOS 26.1 하나뿐이다
 
