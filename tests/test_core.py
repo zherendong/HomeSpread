@@ -5,6 +5,7 @@
 
 import ast
 import copy
+import logging
 import plistlib
 import re
 import sys
@@ -28,7 +29,7 @@ from ipsm.iconstate import (  # noqa: E402
 from ipsm.icons import IconStore, wanted_icons  # noqa: E402
 from ipsm.layout import LayoutDocument, LayoutError  # noqa: E402
 from ipsm.paths import DATA_DIRS, data_root, ensure_ready  # noqa: E402
-from ipsm.logging_setup import start_session  # noqa: E402
+from ipsm.logging_setup import prune_sessions, start_session  # noqa: E402
 
 # 실제 iconState 를 흉내낸 표본. 독 + 2페이지 + 폴더 + 위젯(우리가 모르는 것).
 SAMPLE = [
@@ -1694,6 +1695,55 @@ def test_the_splash_covers_the_seconds_before_the_window():
     assert "_close_splash()" in app_src
     # 창을 보이기 '전에' 내려야 빈 바탕화면이 비치지 않는다.
     assert app_src.index("_close_splash()\n    window.show()") > 0
+
+
+def test_a_quiet_run_leaves_one_file_and_no_empty_folder():
+    """기기에 닿지 않고 끝난 실행은 로그 한 장만 남겨야 한다.
+
+    산출물 폴더를 미리 만들면 실행할 때마다 빈 폴더가 하나씩 쌓이고, 정작 내용이
+    든 폴더를 그 사이에서 찾을 수 없게 된다. 폴더가 있다는 것 자체가 "이 세션은
+    기기에서 무언가를 받아 왔다"는 표시여야 한다.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        session = start_session(root, name="test")
+        assert session.log_path.exists(), "로그 파일이 없다"
+        assert not session.artifact_dir.exists(), "받아 온 것이 없는데 폴더가 생겼다"
+
+        session.save_artifact("something", {"a": 1})
+        assert session.artifact_dir.is_dir(), "저장할 것이 생겼는데 폴더가 없다"
+
+        # 산출물이 없어도 보고서는 만들 수 있어야 한다 — 로그만 들어간다.
+        session2 = start_session(root, name="test2")
+        assert session2.export_zip().exists()
+
+        # Windows 는 열린 파일을 지우지 못한다. 임시 폴더를 치우려면 먼저 놓아야 한다.
+        for handler in list(logging.getLogger().handlers):
+            logging.getLogger().removeHandler(handler)
+            handler.close()
+
+
+def test_old_sessions_are_pruned_but_strangers_are_not():
+    """세션마다 새 파일을 만드는 것은 신고 하나가 실행 하나에 대응하기 위해서지,
+    영원히 쌓으려는 것이 아니다. 다만 지우는 것은 되돌릴 수 없으므로, 우리가 지은
+    이름 모양에 맞는 것만 지운다 — 사용자가 `logs/` 에 둔 파일은 남의 것이다.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        log_dir = Path(tmp) / "logs"
+        log_dir.mkdir()
+        for i in range(6):
+            stem = f"app_2026081{i}_101010"
+            (log_dir / f"{stem}.log").write_text("x", encoding="utf-8")
+            (log_dir / stem).mkdir()
+        stranger = log_dir / "my_notes.log"
+        stranger.write_text("사용자가 둔 파일", encoding="utf-8")
+
+        prune_sessions(log_dir, keep=2)
+
+        left = sorted(x.name for x in log_dir.glob("*.log"))
+        assert left == ["app_20260814_101010.log", "app_20260815_101010.log", "my_notes.log"], left
+        assert not (log_dir / "app_20260810_101010").exists(), "폴더가 남았다"
+        assert stranger.exists(), "남의 파일을 지웠다"
 
 
 def test_the_program_ships_as_a_folder_not_one_file():

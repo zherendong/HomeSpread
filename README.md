@@ -171,11 +171,14 @@ run_probe.bat --roundtrip
 
 ## 기록되는 것
 
-실행할 때마다 세션 하나가 만들어지고, 덮어쓰지 않는다.
+실행할 때마다 세션 하나가 만들어지고, 덮어쓰지 않는다. 문제 신고 하나가 실행 하나에
+대응해야 하기 때문이다. 대신 **최근 20회분만 남기고 오래된 것은 스스로 지운다**
+(`logging_setup.KEEP_SESSIONS`). `logs/` 안에서 우리가 지은 이름 모양에 맞는 것만
+지우므로, 그 폴더에 따로 둔 파일은 건드리지 않는다. `backups/` 는 지우지 않는다.
 
 ```
 logs/probe_20260819_143116.log          전 과정 (라이브러리 내부 로그·스택트레이스 포함)
-logs/probe_20260819_143116/             그 세션의 원본 산출물
+logs/probe_20260819_143116/             그 세션의 원본 산출물 — 받아 온 것이 있을 때만 생긴다
     icon_state_before.plist                 읽은 원본 그대로
     icon_state_before_readable.json         사람이 읽는 형태
     icon_metrics.json                       그리드 수치

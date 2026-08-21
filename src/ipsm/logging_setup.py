@@ -4,11 +4,18 @@
 문제 신고와 개선점 발굴의 유일한 근거이므로, 로그는 덮어쓰지 않고 세션마다 새로 만든다.
 
 기록 위치:
-    logs/session_{YYYYMMDD_HHMMSS}.log        사람이 읽는 로그
-    logs/session_{YYYYMMDD_HHMMSS}/           같은 세션의 원본 산출물 (iconState 등)
+    logs/{이름}_{YYYYMMDD_HHMMSS}.log        사람이 읽는 로그
+    logs/{이름}_{YYYYMMDD_HHMMSS}/           같은 세션의 원본 산출물 (iconState 등)
 
 원본 iconState는 크고 반복적이라 로그 본문에 넣으면 로그를 못 읽게 된다.
 별도 파일로 저장하고 로그에는 경로와 요약만 남긴다.
+
+**산출물 폴더는 실제로 넣을 것이 생길 때 만든다.** 미리 만들어 두면 기기에 한 번도
+닿지 않고 끝난 실행마다 빈 폴더가 하나씩 쌓여, 정작 내용이 든 폴더를 찾을 수 없게
+된다. 폴더가 있다는 것 자체가 "이 세션은 기기에서 무언가를 받아 왔다"는 표시다.
+
+**오래된 세션은 스스로 지운다** (`KEEP_SESSIONS`). 세션마다 새 파일을 만드는 이유는
+문제 신고 하나가 실행 하나에 대응해야 하기 때문이지, 영원히 쌓으려는 것이 아니다.
 """
 
 from __future__ import annotations
@@ -18,6 +25,7 @@ import logging
 import platform
 import plistlib
 import re
+import shutil
 import sys
 import time
 import zipfile
@@ -30,6 +38,47 @@ _LOG_FORMAT = "%(asctime)s %(levelname)-7s [%(name)s] %(message)s"
 _DATE_FORMAT = "%H:%M:%S"
 
 _session: Optional["Session"] = None
+
+#: 남겨 둘 세션 수. 문제 신고는 대개 방금 일어난 일이라 오래된 기록은 자리만 차지한다.
+#: 그렇다고 한 벌만 남기면 "어제는 됐는데"를 대조할 수 없어, 며칠치가 남을 만큼만 둔다.
+KEEP_SESSIONS = 20
+
+#: 우리가 만든 세션 기록만 골라내는 자물쇠. 사용자가 `logs/` 에 따로 둔 파일은
+#: 이 모양을 갖지 않으므로 정리 대상이 되지 않는다 — 남의 파일을 지우면 안 된다.
+_SESSION_STEM = re.compile(r"^.+_\d{8}_\d{6}$")
+
+
+def prune_sessions(log_dir: Path, keep: int = KEEP_SESSIONS) -> int:
+    """오래된 세션 기록(로그·산출물 폴더·보고서 zip)을 지운다.
+
+    지우는 것은 되돌릴 수 없으므로 범위를 좁게 잡는다: `logs/` 안에서, 우리가 지은
+    이름 모양(`{이름}_{날짜}_{시각}`)에 맞는 것만, 최신 `keep` 개를 뺀 나머지만.
+    지우다 실패해도 예외를 올리지 않는다 — 로그 정리 때문에 앱이 못 뜨는 것이
+    가장 나쁜 결말이다.
+    """
+    log = logging.getLogger("session")
+    stems = sorted(
+        {path.stem for path in log_dir.glob("*.log") if _SESSION_STEM.match(path.stem)}
+    )  # 이름 끝에 날짜·시각이 붙어 있어 이름순 = 시간순이다
+    if len(stems) <= keep:
+        return 0
+
+    removed = 0
+    for stem in stems[: len(stems) - keep]:
+        for target in (log_dir / f"{stem}.log", log_dir / stem, log_dir / f"{stem}_report.zip"):
+            try:
+                if target.is_dir():
+                    shutil.rmtree(target)
+                elif target.exists():
+                    target.unlink()
+                else:
+                    continue
+                removed += 1
+            except OSError as exc:  # 사용 중인 파일 등 — 다음 실행에서 다시 시도한다
+                log.debug("오래된 기록을 지우지 못했다: %s (%s)", target.name, exc)
+    if removed:
+        log.debug("오래된 세션 기록 %d개 정리 (최근 %d개는 남긴다)", removed, keep)
+    return removed
 
 
 def mask(value: Optional[str], keep: int = 4) -> str:
@@ -129,11 +178,12 @@ class Session:
         self.log_dir = root / "logs"
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.log_path = self.log_dir / f"{self.id}.log"
+        # 만들지 않는다 — `save_artifact()` 가 넣을 것이 생겼을 때 만든다.
         self.artifact_dir = self.log_dir / self.id
-        self.artifact_dir.mkdir(parents=True, exist_ok=True)
 
         self._install_handlers()
         self._log_environment()
+        prune_sessions(self.log_dir)
 
     # ------------------------------------------------------------------ setup
 
@@ -142,6 +192,12 @@ class Session:
         root_logger.setLevel(logging.DEBUG)
         for handler in list(root_logger.handlers):
             root_logger.removeHandler(handler)
+            # 닫아 준다. 떼어내기만 하면 앞 세션의 로그 파일이 열린 채로 남아,
+            # 정리하려는 쪽(오래된 기록 정리·임시 폴더 삭제)이 막힌다.
+            try:
+                handler.close()
+            except Exception:  # pragma: no cover - 이미 닫힌 핸들러 등
+                pass
 
         # 파일에는 전부 남긴다. 사후 분석에서 무엇이 필요할지 미리 알 수 없다.
         file_handler = logging.FileHandler(self.log_path, encoding="utf-8")
@@ -173,7 +229,8 @@ class Session:
         log.debug("session id      : %s", self.id)
         log.debug("started at      : %s", self.started_at.isoformat())
         log.debug("log file        : %s", self.log_path)
-        log.debug("artifact dir    : %s", self.artifact_dir)
+        # 아직 없는 자리다. 기기에서 무언가를 받아 오면 그때 만들어진다.
+        log.debug("artifact dir    : %s (필요할 때 만든다)", self.artifact_dir)
         log.debug("platform        : %s", platform.platform())
         log.debug("python          : %s", sys.version.replace("\n", " "))
         try:
@@ -193,6 +250,7 @@ class Session:
         한다. 그래서 해석 결과가 아니라 받은 그대로를 저장한다.
         """
         log = logging.getLogger("session")
+        self.artifact_dir.mkdir(parents=True, exist_ok=True)
         if fmt == "plist":
             path = self.artifact_dir / f"{name}.plist"
             # 이진 형식. XML plist 는 날짜의 소수점 이하를 버리므로 '원본 그대로'가 되지 못한다.
@@ -220,7 +278,8 @@ class Session:
         dest = dest or (self.log_dir / f"{self.id}_report.zip")
         with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as zf:
             zf.write(self.log_path, self.log_path.name)
-            for item in sorted(self.artifact_dir.rglob("*")):
+            items = sorted(self.artifact_dir.rglob("*")) if self.artifact_dir.exists() else []
+            for item in items:
                 if item.is_file():
                     zf.write(item, f"{self.id}/{item.relative_to(self.artifact_dir)}")
         log.info("진단 보고서 생성: %s", dest)

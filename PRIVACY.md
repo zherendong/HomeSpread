@@ -37,11 +37,13 @@ USB 로 연결한 기기에서 다음을 읽는다. 모두 당신의 PC 안에�
 | 폴더·파일 | 내용 | 지워도 되는가 |
 |-----------|------|--------------|
 | `backups/` | 적용 직전의 홈화면 배치 원본 | **지우면 되돌릴 수 없다** |
-| `logs/` | 실행 기록 (UDID 는 가려져 있다) | 지워도 된다 |
+| `logs/` | 실행 기록 (UDID 는 가려져 있다). **최근 20회분만 남고 오래된 것은 프로그램이 스스로 지운다** | 지워도 된다 |
 | `cache/icons/` | 아이콘 그림 | 지워도 된다. 다시 받는다 |
 | `settings.json` | 고른 언어 | 지워도 된다 |
 
 이 파일들은 전부 당신의 것이다. 폴더째 지우면 그것으로 끝이며, 어디에도 사본은 없다.
+`logs/` 만은 프로그램이 스스로 오래된 것을 지운다 — 무한정 쌓이지 않게 하기 위해서다.
+`backups/` 는 **지우지 않는다.** 되돌릴 길을 우리가 임의로 없애서는 안 되기 때문이다.
 
 ## 4. 바깥으로 나가는 순간
 
@@ -103,11 +105,13 @@ Next to the executable (or in the project folder when run from source):
 | File / folder | Contents | Safe to delete? |
 |---------------|----------|-----------------|
 | `backups/` | The exact layout captured before each write | **Deleting removes your way back** |
-| `logs/` | Run logs (UDIDs masked) | Yes |
+| `logs/` | Run logs (UDIDs masked). **Only the last 20 runs are kept; older ones are deleted automatically** | Yes |
 | `cache/icons/` | Icon images | Yes, they are fetched again |
 | `settings.json` | Chosen language | Yes |
 
 These files are yours. Delete the folder and it is gone; no copy exists anywhere else.
+Only `logs/` is pruned by the program itself, so it cannot grow without bound. `backups/`
+is **never** pruned — removing your way back is not ours to decide.
 
 ## 4. When anything leaves your machine
 
