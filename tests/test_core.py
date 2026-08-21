@@ -1777,6 +1777,88 @@ def test_the_source_offer_points_somewhere_real():
     assert (ROOT / "PRIVACY.md").exists()
 
 
+# 아래 다섯은 2026-08-21 실기기(iPhone 14 / iOS 26.1)에서 그대로 뜬 모양이다.
+# 손으로 지어낸 예가 아니라 실제 `installation_proxy` 응답에서 뽑았다.
+_REAL_SYSTEM_APPS = {
+    # 8/19 쓰기에서 iOS 가 실제로 마지막 페이지에 되붙인 기본 앱. 반드시 예고해야 한다.
+    "com.apple.Magnifier": {
+        "CFBundleDisplayName": "돋보기",
+        "CFBundleIcons": {"CFBundlePrimaryIcon": {"CFBundleIconFiles": ["AppIcon60x60"]}},
+    },
+    # 화면이 없는 내부 구성요소. 232개 중 184개가 이 모양이다.
+    "com.apple.AAUIViewService": {
+        "CFBundleDisplayName": "AAUIViewService",
+        "SBAppTags": ["hidden"],
+    },
+    # 아이콘 자체가 없다.
+    "com.apple.webapp": {"CFBundleDisplayName": "Web"},
+    # 앱이 자기 표시 여부를 스스로 정한다 — 켜 주기 전에는 홈화면에 뜨지 않는다.
+    "com.apple.sidecar": {
+        "CFBundleDisplayName": "연속성",
+        "CFBundleIcons": {"CFBundlePrimaryIcon": {"CFBundleIconFiles": ["Sidecar60x60"]}},
+        "SBIconVisibilitySetByAppPreference": True,
+    },
+    # 지역 제한: 한국 기기에서는 뜨지 않는다.
+    "com.apple.news": {
+        "CFBundleDisplayName": "News",
+        "CFBundleIcons": {"CFBundlePrimaryIcon": {"CFBundleIconFiles": ["AppIcon60x60"]}},
+        "LSSupportedRegions": ["US", "GB", "AU", "CA"],
+    },
+}
+
+
+def test_only_the_built_in_apps_that_can_appear_are_warned_about():
+    """기본 앱 232개를 다 세면 틀린 경고를 190번 하게 된다.
+
+    실기기 대조(2026-08-21): 이 기준을 통과하는 미배치 기본 앱은 0개였고, 그날 두 번의
+    쓰기에서 iOS 가 되붙인 것도 0개였다. 반대로 8/19 에 되붙은 '돋보기'는 통과한다.
+    """
+    from ipsm.device import shows_on_home_screen
+
+    visible = {
+        bundle_id
+        for bundle_id, info in _REAL_SYSTEM_APPS.items()
+        if shows_on_home_screen(info, "KR")
+    }
+    assert visible == {"com.apple.Magnifier"}, visible
+
+    # 지역을 모를 때는 지역 조건만 접는다 — 모른다고 빠뜨리면 사용자가 놀란다.
+    assert shows_on_home_screen(_REAL_SYSTEM_APPS["com.apple.news"], None)
+    assert shows_on_home_screen(_REAL_SYSTEM_APPS["com.apple.news"], "US")
+    # 다른 조건은 지역과 무관하게 그대로 막는다.
+    assert not shows_on_home_screen(_REAL_SYSTEM_APPS["com.apple.sidecar"], None)
+
+
+def test_the_device_asks_for_built_in_apps_too():
+    """`application_type="User"` 만 물으면 기본 앱이 예고에서 통째로 빠진다.
+
+    이 구멍은 가정이 아니라 실제로 터졌다 — 8/19 쓰기에서 iOS 가 되붙인 4개 중 하나가
+    Apple 기본 앱 '돋보기'였는데, 그때 우리는 그것을 예고하지 못했다.
+    """
+    src = (ROOT / "src" / "ipsm" / "device.py").read_text(encoding="utf-8")
+    body = src[src.index("async def list_installed_apps("): src.index("async def get_orientation(")]
+    assert 'application_type="User"' in body
+    assert 'application_type="System"' in body, "기본 앱을 다시 안 묻게 되돌아갔다"
+    assert "shows_on_home_screen(" in body, "기본 앱을 거르지 않고 다 센다"
+
+
+def test_the_region_never_comes_from_the_apple_part_code():
+    """`RegionInfo` 는 'KH/A' 처럼 Apple 의 부품 지역 코드이지 ISO 국가 코드가 아니다.
+
+    ISO 로 `KH` 는 캄보디아라, 그것으로 `LSSupportedRegions` 를 대조하면 조용히 틀린다.
+    """
+    from ipsm import device
+
+    assert device._region_of("ko_KR") == "KR"
+    assert device._region_of("en-US") == "US"
+    assert device._region_of(None) is None
+    assert device._region_of("ko") is None  # 나라를 모르면 없다고 말한다
+
+    src = (ROOT / "src" / "ipsm" / "device.py").read_text(encoding="utf-8")
+    region_fn = src[src.index("async def _home_region("): src.index("async def list_installed_apps(")]
+    assert "RegionInfo" not in region_fn
+
+
 def test_the_device_verifier_stays_read_only_without_apply():
     """검증기는 `--apply` 를 붙였을 때만 기기에 쓴다.
 

@@ -147,6 +147,60 @@ async def _create_lockdown(serial: Optional[str]):
         return await create_using_usbmux(serial=serial, label=_LABEL)
 
 
+# 기본 앱(System) 232개 중 홈화면에 뜨는 것은 40여 개뿐이다. 나머지는 화면 없는
+# 구성요소이거나 자기 자신을 숨기는 앱이라, 그냥 다 세면 "이 앱들이 끝에 붙습니다"라는
+# 경고를 190번 틀리게 하게 된다. 아래 네 가지가 실기기에서 확인된 거르는 근거다
+# (2026-08-21, iPhone 14 / iOS 26.1 — 이 기준을 통과하는 미배치 기본 앱은 0개였고
+#  실제로 되붙은 것도 0개였다. 반대로 8/19 에 iOS 가 되붙인 '돋보기'는 통과한다).
+
+
+def _has_icon(info: dict[str, Any]) -> bool:
+    """홈화면 아이콘이 있는가. 없으면 애초에 홈화면에 놓일 수 없다."""
+    icons = info.get("CFBundleIcons")
+    if isinstance(icons, dict) and icons.get("CFBundlePrimaryIcon"):
+        return True
+    return bool(info.get("CFBundleIconFiles") or info.get("CFBundleIconFile"))
+
+
+def _region_of(locale: Optional[str]) -> Optional[str]:
+    """'ko_KR' -> 'KR'.
+
+    lockdown 의 `RegionInfo`('KH/A')를 쓰지 않는 이유: 그것은 Apple 의 부품 지역
+    코드이지 ISO 국가 코드가 아니다 — ISO 로 `KH` 는 캄보디아다. 로케일만 쓴다.
+    """
+    if not locale:
+        return None
+    parts = str(locale).replace("-", "_").split("_")
+    if len(parts) < 2:
+        return None  # 'ko' — 말은 알아도 나라는 모른다
+    tail = parts[-1].upper()
+    return tail if len(tail) == 2 and tail.isalpha() else None
+
+
+def shows_on_home_screen(info: dict[str, Any], region: Optional[str] = None) -> bool:
+    """이 기본 앱이 홈화면에 나타날 수 있는가.
+
+    거르는 순서대로 이유가 다르다.
+      1. `SBAppTags` 의 `hidden` — 화면 없는 내부 구성요소. 232개 중 184개가 여기다.
+      2. 아이콘 없음 — 그릴 것이 없다.
+      3. `SBIconVisibilitySetByAppPreference` — 앱이 자기 표시 여부를 스스로 정한다
+         (연속성·피드백·Xcode Previews·필드 테스트). 켜 주기 전에는 뜨지 않는다.
+      4. `LSSupportedRegions` 에 이 기기의 지역이 없음 — 예: News 는 US·GB·AU·CA 에서만
+         뜬다. **지역을 알아내지 못했으면 거르지 않는다** — 모른다고 빠뜨리는 것보다
+         한 번 더 경고하는 편이 낫다. 빠뜨리면 사용자가 놀라고, 더 경고하면 안 붙을 뿐이다.
+    """
+    if "hidden" in (info.get("SBAppTags") or []):
+        return False
+    if not _has_icon(info):
+        return False
+    if info.get("SBIconVisibilitySetByAppPreference"):
+        return False
+    regions = info.get("LSSupportedRegions")
+    if regions and region and region not in {str(r).upper() for r in regions}:
+        return False
+    return True
+
+
 @dataclass
 class DeviceInfo:
     """진단에 필요한 최소 정보. 개인 식별 정보는 마스킹된 상태로만 보관한다."""
@@ -350,8 +404,21 @@ class DeviceBridge:
             ctx["result"] = f"성공 {len(icons)}개 / 요청 {len(identifiers)}개"
         return icons
 
+    async def _home_region(self) -> Optional[str]:
+        """이 기기가 어느 나라로 설정돼 있는가 — `LSSupportedRegions` 대조용."""
+        if self._lockdown is None:
+            return None
+        try:
+            locale = await self._lockdown.get_value(
+                domain="com.apple.international", key="Locale"
+            )
+        except Exception as exc:  # noqa: BLE001 - 없으면 지역 조건만 건너뛴다
+            log.debug("기기 지역을 읽지 못했다: %r", exc)
+            return None
+        return _region_of(locale if isinstance(locale, str) else None)
+
     async def list_installed_apps(self) -> dict[str, str]:
-        """설치된 사용자 앱: 번들 ID -> 표시 이름.
+        """홈화면에 놓일 수 있는 설치된 앱: 번들 ID -> 표시 이름.
 
         홈화면 배치(iconState)에는 **홈화면에 놓인 것만** 들어 있다. 앱 라이브러리에만
         있는 앱은 흔적조차 없다 — `setIconState` 에 "설치됐지만 홈화면에 없음"을
@@ -361,23 +428,53 @@ class DeviceBridge:
         여기서 설치 목록을 따로 받아 두면, 적용 전에 "이 앱들이 끝에 붙습니다"를
         이름까지 대며 말할 수 있다. 놀라게 하지 않는 것이 이 조회의 전부다.
 
+        **사용자 앱만 세면 구멍이 난다.** 2026-08-19 실기기 쓰기에서 iOS 가 되붙인
+        4개 중 하나가 Apple 기본 앱인 '돋보기'(`com.apple.Magnifier`)였다. 기본 앱도
+        앱 라이브러리로 치울 수 있으니 당연한 일인데, `application_type="User"` 만
+        묻던 우리는 그것을 예고하지 못했다.
+
+        그렇다고 기본 앱을 다 셀 수는 없다 — 232개 중 190개가 홈화면에 결코 뜨지 않는
+        것들이라, 그대로 세면 틀린 경고를 190번 하게 된다. `shows_on_home_screen` 이
+        그 둘을 가른다. 사용자 앱에는 그 체를 대지 않는다: 두 번의 실기기 쓰기에서
+        이미 정확했던 목록이고, 근거 없이 체를 대면 맞던 것을 틀리게 만들 수 있다.
+
         실패해도 빈 dict 를 돌려준다 — 이것은 부가 정보이며, 없다고 편집을 막을 이유가 없다.
         """
         if self._lockdown is None:
             return {}
         try:
             async with InstallationProxyService(lockdown=self._lockdown) as proxy:
-                apps = await proxy.get_apps(application_type="User")
+                user_apps = await proxy.get_apps(application_type="User")
+                system_apps = await proxy.get_apps(application_type="System")
         except Exception as exc:
             log.warning("설치된 앱 목록을 받지 못했다(치명적이지 않음): %r", exc)
             return {}
-        found = {
-            str(bundle_id): str(
+
+        region = await self._home_region()
+
+        def label(bundle_id: str, info: dict[str, Any]) -> str:
+            return str(
                 info.get("CFBundleDisplayName") or info.get("CFBundleName") or bundle_id
             )
-            for bundle_id, info in (apps or {}).items()
+
+        found = {
+            str(bundle_id): label(str(bundle_id), info)
+            for bundle_id, info in (user_apps or {}).items()
         }
-        log.info("설치된 사용자 앱 %d개", len(found))
+        visible_system = {
+            str(bundle_id): label(str(bundle_id), info)
+            for bundle_id, info in (system_apps or {}).items()
+            if shows_on_home_screen(info, region)
+        }
+        found.update(visible_system)
+        log.info(
+            "설치된 앱 %d개 (사용자 %d · 홈화면에 뜨는 기본 앱 %d/%d, 지역 %s)",
+            len(found),
+            len(user_apps or {}),
+            len(visible_system),
+            len(system_apps or {}),
+            region or "알 수 없음",
+        )
         return found
 
     async def get_orientation(self) -> Optional[str]:
