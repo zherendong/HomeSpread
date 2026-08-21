@@ -128,3 +128,4 @@ Partner Center 의 개인정보 처리방침 URL(`PRIVACY.md`), 그리고 배포
 | 2026-08-21 | 시작 그림 — 창이 뜨기 전 몇 초를 채운다 | scripts/make_splash.py(신규), assets/splash.png, HomeBoard.spec `Splash`, app.py `_close_splash` | 그 구간에는 파이썬조차 시작 전이라 Qt 로는 띄울 수 없다. 부트로더가 직접 띄우는 Tk 그림만이 답 |
 | 2026-08-21 | **폴더 배포로 전환** (단일 exe → `dist\HomeBoard\`) | HomeBoard.spec `COLLECT`·`exclude_binaries`, build_exe.bat, paths.py, README.md | 21초 → 2.3초. 21초의 16.5초는 매 실행마다 자기 안을 푸는 시간이었다. MSIX 도 이 모양을 요구한다 |
 | 2026-08-21 | git 저장소 시작 (`main`, 157개 파일) | .gitignore, 전체 | 공개 저장소 주소가 `SOURCE_URL`·방침 URL·배포 자리를 한 번에 채운다. 기기 자료(`logs/`·`backups/`·`cache/`)는 막고, 주석의 예시 UDID 도 지웠다 |
+| 2026-08-21 | **공개** — github.com/humanlyj/HomeBoard 에 올리고 `v1.0.14` 태그 | 원격 `origin`, 태그 v1.0.14 | GPL 은 실행 파일을 건네준 사람에게 소스에 닿을 길을 함께 주기를 요구한다. 익명으로 `LICENSE`·`PRIVACY.md` 가 열리는 것까지 확인했다 — 로그인해야 읽을 수 있는 주소는 없는 주소와 같다. 커밋 서명 이메일은 GitHub 계정과 맞춰 두었다(연결은 이름이 아니라 이메일로 된다) |
