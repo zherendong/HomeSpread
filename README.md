@@ -1,4 +1,4 @@
-# HomeBoard
+# HomeSpread
 
 *Mobile layout manager for iOS*
 
@@ -6,7 +6,7 @@
 
 > **이름과 부제를 나눠 둔 이유.** Apple 상표 지침은 자기 제품 **이름 안에**
 > `iOS`·`iPhone` 을 넣는 것을 금지하고, 호환성 표기는 이름 아래 부제로만 허용한다.
-> 스토어 심사에서 걸리는 자리도 "앱 이름" 칸이다. 그래서 이름은 `HomeBoard`,
+> 스토어 심사에서 걸리는 자리도 "앱 이름" 칸이다. 그래서 이름은 `HomeSpread`,
 > 호환성 표기는 부제(`Mobile layout manager for iOS`)로 두고, 코드에서는 둘 다
 > `src/ipsm/product.py` 한 곳에서만 선언한다.
 
@@ -76,11 +76,17 @@ iPhone을 USB로 연결하고, **잠금을 해제한 상태로** 둔 뒤:
 run_app.bat
 ```
 
-파이썬이 설치되지 않은 PC 라면, 만들어 둔 **`HomeBoard\` 폴더째** 복사해 원하는
-자리에 두고 그 안의 `HomeBoard.exe` 를 더블클릭한다. 준비 단계(`install.bat`)도 필요
-없다. 처음 실행하면 exe 옆에 `logs\` `backups\` `cache\` 폴더가 자동으로 만들어지므로,
+파이썬이 설치되지 않은 PC 라면, 만들어 둔 **`HomeSpread\` 폴더째** 복사해 원하는
+자리에 두고 그 안의 `HomeSpread.exe` 를 더블클릭한다. 준비 단계(`install.bat`)도 필요
+없다. 처음 실행하면 exe 옆에 `logs\` `backups\` 폴더가 자동으로 만들어지므로,
 **쓰기 권한이 있는 폴더**(바탕화면·문서 등)에 둔다. Program Files 처럼 쓸 수 없는 곳에 두면 앱이 그 사실을
 알리고 시작하지 않는다 — 백업을 남길 수 없는 상태로는 기기에 쓰지 않기 때문이다.
+
+자료를 어디에 두는지는 `src/ipsm/paths.py` 한 곳이 정한다. 규칙은 **잃으면 안 되는 것과
+다시 만들 수 있는 것을 가르는 것**이다 — `backups\` `logs\` `settings.json` 은 위에서 말한
+자리에 남고(Microsoft Store 로 설치한 경우에만 `문서\HomeSpread\`, 설치 폴더에 쓸 수 없기
+때문이다), 아이콘 그림은 Windows 임시 폴더에 둔다. 어느 자리를 골랐는지는 실행할 때마다
+`logs\` 첫 줄에 적힌다.
 
 실행 폴더를 새로 만들려면:
 
@@ -88,7 +94,7 @@ run_app.bat
 build_exe.bat
 ```
 
-(`dist\HomeBoard\` 로 나온다. 옵션과 그 이유는 `HomeBoard.spec`.)
+(`dist\HomeSpread\` 로 나온다. 옵션과 그 이유는 `HomeSpread.spec`.)
 
 단일 파일이 아니라 폴더인 이유는 시간이다. 단일 exe 는 실행할 때마다 자기 안 72MB 를
 임시 폴더에 풀고, 그 시간이 **매번** 붙는다 — 실측 21초 중 16.5초가 그것이었다. 폴더로
@@ -213,7 +219,7 @@ backups/20260819_143116_probe.plist     이 시점의 홈화면 (복원용)
 | `src/ipsm/iconstate.py` | 레이아웃 해석 (원본 보존이 제1 원칙) |
 | `src/ipsm/backup.py` | 백업·복원 · 모든 쓰기가 여기를 거친다 |
 | `src/ipsm/layout.py` | 편집 문서 — 이동·취소·변경 목록. 옮길 수 있는지는 여기서만 판단한다 |
-| `src/ipsm/icons.py` | 아이콘 PNG 저장소 (`cache/icons/`) |
+| `src/ipsm/icons.py` | 아이콘 PNG 저장소 (임시 폴더 — 잃어도 되는 것) |
 | `src/ipsm/apple_devices.py` | Windows 쪽 준비물 확인 — 27015 이 열려 있는가 |
 | `src/ipsm/i18n.py` / `translations_en.py` | 말 — 한국어 원문이 열쇠, 로그는 옮기지 않는다 |
 | `src/ipsm/ui/` | 화면 — Qt 를 아는 곳은 여기뿐이다 (`guide.py` 가 시작 안내판) |
@@ -222,7 +228,7 @@ backups/20260819_143116_probe.plist     이 시점의 홈화면 (복원용)
 | `tests/test_core.py` | 기기 없이 확인 가능한 것들 — `python tests/test_core.py` |
 | `install.bat` / `install.ps1` | 의존성 설치 (`lzfse` 빌드 회피) |
 | `run_app.bat` | 편집 창 실행 wrapper |
-| `build_exe.bat` / `HomeBoard.spec` | 실행 폴더 만들기 |
+| `build_exe.bat` / `HomeSpread.spec` | 실행 폴더 만들기 |
 | `src/ipsm/product.py` | 제품 이름·부제·후원 주소 — 선언 한 곳 |
 | `src/ipsm/paths.py` | 자료 폴더 위치 — exe 로 묶였을 때는 exe 옆 |
 | `src/ipsm/ui/about.py` | 정보 창 — 판·라이선스·원문 (창 안에서 읽는다) |
@@ -249,7 +255,7 @@ backups/20260819_143116_probe.plist     이 시점의 홈화면 (복원용)
 
 ## 라이선스
 
-**HomeBoard 는 GPL-3.0-or-later 다.** 원문은 [`LICENSE`](LICENSE).
+**HomeSpread 는 GPL-3.0-or-later 다.** 원문은 [`LICENSE`](LICENSE).
 
 고른 것이 아니라 따라온 결과다. 기기와 말하는 일을 `pymobiledevice3` 가 하는데
 그것이 GPL 이고, 함께 묶어 내보내는 순간 전체가 GPL 이 된다. 대안(`libimobiledevice`
@@ -274,7 +280,7 @@ backups/20260819_143116_probe.plist     이 시점의 홈화면 (복원용)
 원문은 프로그램 안에도 함께 실린다. 실행 파일만 건네받은 사람도 **정보** 단추로 읽을
 수 있어야 하기 때문이다.
 
-소스는 <https://github.com/humanlyj/HomeBoard> 에 있다. GPL 은 실행 파일을 받은
+소스는 <https://github.com/humanlyj/HomeSpread> 에 있다. GPL 은 실행 파일을 받은
 사람에게 소스를 받을 길을 함께 주기를 요구하므로, 이 주소는 `product.SOURCE_URL` 에
 적혀 있고 정보 창이 링크로 보여준다. 저장소를 옮기면 그 선언부터 고친다 — 닿지 않는
 주소는 없는 주소와 같고, GPL 아래에서 그것은 의무 불이행이다.

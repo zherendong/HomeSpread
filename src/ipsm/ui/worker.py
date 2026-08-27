@@ -29,6 +29,7 @@ from ..backup import Backup, BackupStore, guarded_write, restore
 from ..i18n import tr
 from ..iconstate import compare_after_write
 from ..icons import IconStore
+from ..paths import cache_root
 
 # 기기 계층은 여기서 들이지 않는다 — `_load_device_layer()` 가 워커 스레드에서 들인다.
 DeviceBridge = None  # type: ignore[assignment]
@@ -83,7 +84,8 @@ class DeviceWorker(QThread):
         super().__init__(parent)
         self.root = Path(root)
         self.backups = BackupStore(self.root)
-        self.icons = IconStore(self.root)
+        # 아이콘만 자리가 다르다 — 잃어도 되는 것이라 임시 폴더에 둔다.
+        self.icons = IconStore(cache_root())
         self._bridge: Optional[DeviceBridge] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._loop_ready = threading.Event()

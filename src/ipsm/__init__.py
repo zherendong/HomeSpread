@@ -1,5 +1,5 @@
-# HomeBoard — iPhone 홈화면을 PC 한 화면에서 보고 편집한다.
-# Copyright (C) 2026 HomeBoard contributors
+# HomeSpread — iPhone 홈화면을 PC 한 화면에서 보고 편집한다.
+# Copyright (C) 2026 HomeSpread contributors
 #
 # 이 프로그램은 자유 소프트웨어입니다. 자유 소프트웨어 재단이 발표한 GNU 일반 공중
 # 사용 허가서 3판 또는 (선택에 따라) 그 이후 판의 조건에 따라 재배포하거나 수정할
@@ -10,7 +10,7 @@
 # 공중 사용 허가서를 보십시오. 원문은 이 프로그램과 함께 `LICENSE` 로 실려 있고,
 # <https://www.gnu.org/licenses/> 에서도 볼 수 있습니다.
 
-"""HomeBoard — iPhone 홈화면을 PC 한 화면에서 보고 편집한다.
+"""HomeSpread — iPhone 홈화면을 PC 한 화면에서 보고 편집한다.
 
 제품 이름은 `product.py` 한 곳에서만 선언한다. 이 설명글은 코드가 아니라 글이라
 이름을 적어도 되지만, 코드에서는 `product.NAME` 을 읽는다.

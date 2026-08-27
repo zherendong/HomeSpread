@@ -1,6 +1,6 @@
 # 개인정보 처리방침 · Privacy Policy
 
-**제품:** HomeBoard (Mobile layout manager for iOS)
+**제품:** HomeSpread (Mobile layout manager for iOS)
 **마지막 갱신:** 2026-08-20
 **문의:** forad@ujak.net
 
@@ -8,7 +8,7 @@
 
 ## 한 줄 요약
 
-**HomeBoard 는 어떤 정보도 수집하거나 밖으로 보내지 않는다.** 이 프로그램이 다루는 것은
+**HomeSpread 는 어떤 정보도 수집하거나 밖으로 보내지 않는다.** 이 프로그램이 다루는 것은
 전부 당신의 PC 와 USB 로 연결된 당신의 기기 사이에서만 오간다.
 
 ## 1. 우리가 수집하는 것
@@ -32,14 +32,35 @@ USB 로 연결한 기기에서 다음을 읽는다. 모두 당신의 PC 안에�
 
 ## 3. 당신의 PC 에 남는 것
 
-실행 파일 옆(또는 소스에서 실행한 경우 프로젝트 폴더)에 다음이 만들어진다.
-
 | 폴더·파일 | 내용 | 지워도 되는가 |
 |-----------|------|--------------|
 | `backups/` | 적용 직전의 홈화면 배치 원본 | **지우면 되돌릴 수 없다** |
 | `logs/` | 실행 기록 (UDID 는 가려져 있다). **최근 20회분만 남고 오래된 것은 프로그램이 스스로 지운다** | 지워도 된다 |
-| `cache/icons/` | 아이콘 그림 | 지워도 된다. 다시 받는다 |
 | `settings.json` | 고른 언어 | 지워도 된다 |
+| `HomeSpread-cache\icons\` | 아이콘 그림 | 지워도 된다. 다시 받는다 |
+
+**어디에 만들어지는가**는 어떻게 설치했느냐에 따라 다르다.
+
+| 설치 방법 | `backups` · `logs` · `settings.json` |
+|-----------|--------------------------------------|
+| 압축을 풀어 쓰는 경우 | 실행 파일이 있는 폴더 |
+| 소스에서 실행하는 경우 | 프로젝트 폴더 |
+| Microsoft Store 에서 설치한 경우 | `문서\HomeSpread\` |
+
+Store 로 설치하면 프로그램이 놓이는 자리(`C:\Program Files\WindowsApps\`)에는 아무것도
+쓸 수 없어서, 백업을 그 옆에 둘 수가 없다. 그래서 **문서 폴더**에 만든다 — 당신이 직접
+찾아가 열어 볼 수 있는 자리여야 하기 때문이다. 어디에 만들었는지는 실행할 때마다
+`logs/` 첫 줄에 그대로 적힌다.
+
+`문서` 폴더를 OneDrive 등으로 동기화하고 있다면, **그 안에 만들어진 백업도 함께
+동기화된다.** 우리가 보내는 것이 아니라 당신이 켜 둔 동기화가 하는 일이지만, 백업에는
+당신의 홈화면 배치(앱 목록·폴더 이름·순서)가 들어 있으므로 알고 있어야 할 사실이다.
+원하지 않으면 해당 폴더를 동기화 대상에서 제외하면 된다.
+
+아이콘 그림만은 Windows 임시 폴더(`%TEMP%`) 안에 둔다. 다시 받으면 그만인 것이라
+Windows 가 공간이 부족할 때 치워도 잃는 것이 없고, 백업이 있는 폴더가 그림 수백 개로
+불어나지 않는다. **백업과 로그는 절대 임시 폴더에 두지 않는다** — 되돌릴 길을 OS 의
+청소 대상으로 삼을 수는 없다.
 
 이 파일들은 전부 당신의 것이다. 폴더째 지우면 그것으로 끝이며, 어디에도 사본은 없다.
 `logs/` 만은 프로그램이 스스로 오래된 것을 지운다 — 무한정 쌓이지 않게 하기 위해서다.
@@ -70,13 +91,13 @@ USB 로 연결한 기기에서 다음을 읽는다. 모두 당신의 PC 안에�
 
 # Privacy Policy (English)
 
-**Product:** HomeBoard (Mobile layout manager for iOS)
+**Product:** HomeSpread (Mobile layout manager for iOS)
 **Last updated:** 2026-08-20
 **Contact:** forad@ujak.net
 
 ## In one line
 
-**HomeBoard collects nothing and sends nothing.** Everything it handles stays between your
+**HomeSpread collects nothing and sends nothing.** Everything it handles stays between your
 PC and the device you connected over USB.
 
 ## 1. What we collect
@@ -100,14 +121,36 @@ address never leaves your PC.
 
 ## 3. What stays on your PC
 
-Next to the executable (or in the project folder when run from source):
-
 | File / folder | Contents | Safe to delete? |
 |---------------|----------|-----------------|
 | `backups/` | The exact layout captured before each write | **Deleting removes your way back** |
 | `logs/` | Run logs (UDIDs masked). **Only the last 20 runs are kept; older ones are deleted automatically** | Yes |
-| `cache/icons/` | Icon images | Yes, they are fetched again |
 | `settings.json` | Chosen language | Yes |
+| `HomeSpread-cache\icons\` | Icon images | Yes, they are fetched again |
+
+**Where** they are created depends on how you installed the app.
+
+| Installed as | `backups` · `logs` · `settings.json` |
+|--------------|--------------------------------------|
+| Unzipped folder | Next to the executable |
+| Run from source | The project folder |
+| Microsoft Store | `Documents\HomeSpread\` |
+
+A Store install lives in `C:\Program Files\WindowsApps\`, which nothing may write to, so
+backups cannot sit beside the program. They go to your **Documents** folder instead, because
+you must be able to open them yourself. Whichever location is used is written to the first
+lines of `logs/` on every run.
+
+If your `Documents` folder is synced to OneDrive or a similar service, **the backups created
+there are synced too.** That is your sync setting at work rather than anything we send, but
+a backup contains your home-screen layout (app list, folder names, order), so you should
+know. Exclude the folder from syncing if you would rather it stayed local.
+
+Icon images alone are kept inside the Windows temporary folder (`%TEMP%`). They are fetched
+again whenever they are missing, so nothing is lost if Windows clears them to reclaim space,
+and the folder holding your backups does not grow by hundreds of images. **Backups and logs
+are never placed in the temporary folder** — your way back must not be something the OS may
+clean up.
 
 These files are yours. Delete the folder and it is gone; no copy exists anywhere else.
 Only `logs/` is pruned by the program itself, so it cannot grow without bound. `backups/`

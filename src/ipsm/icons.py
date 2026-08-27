@@ -33,10 +33,15 @@ def _filename(identifier: str) -> str:
 
 
 class IconStore:
-    """`cache/icons/` 에 PNG 를 모아 두는 저장소."""
+    """아이콘 PNG 를 모아 두는 저장소.
+
+    자리는 `paths.cache_root()` 가 정한다 — 백업·로그와 달리 이것은 **잃어도 되는**
+    것이라 임시 폴더에 산다. 통째로 지워져도 다시 받으면 그만이고(287개에 7.4초),
+    그 사이에 백업이 있는 폴더가 아이콘 수백 개로 불어나지 않는다.
+    """
 
     def __init__(self, root: Path) -> None:
-        self.dir = Path(root) / "cache" / "icons"
+        self.dir = Path(root) / "icons"
         self.dir.mkdir(parents=True, exist_ok=True)
         self._index_path = self.dir / "index.json"
         self._index: dict[str, str] = self._load_index()

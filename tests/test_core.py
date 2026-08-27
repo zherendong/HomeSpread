@@ -28,7 +28,7 @@ from ipsm.iconstate import (  # noqa: E402
 )
 from ipsm.icons import IconStore, wanted_icons  # noqa: E402
 from ipsm.layout import LayoutDocument, LayoutError  # noqa: E402
-from ipsm.paths import DATA_DIRS, data_root, ensure_ready  # noqa: E402
+from ipsm.paths import DATA_DIRS, cache_root, data_root, ensure_ready  # noqa: E402
 from ipsm.logging_setup import prune_sessions, start_session  # noqa: E402
 from ipsm import product  # noqa: E402
 
@@ -1062,7 +1062,7 @@ def test_icon_store_survives_unsafe_identifiers():
         nasty = "../../etc/passwd:weird*id"
         store.put(nasty, b"X")
         assert store.get(nasty) == b"X"
-        files = list(Path(tmp).glob("cache/icons/*.png"))
+        files = list(Path(tmp).glob("icons/*.png"))
         assert len(files) == 1, files
         # 이름이 어떻게 바뀌든, 파일이 저장소 밖으로 나가지 않는 것이 요점이다.
         assert files[0].resolve().parent == store.dir.resolve()
@@ -1643,7 +1643,7 @@ def test_the_gpl_library_is_marked_as_gpl_in_the_notices():
 
 def test_the_license_texts_travel_inside_the_exe():
     """exe 하나만 받은 사람도 원문을 읽을 수 있어야 한다."""
-    spec = (ROOT / "HomeBoard.spec").read_text(encoding="utf-8")
+    spec = (ROOT / "HomeSpread.spec").read_text(encoding="utf-8")
     for needed in (
         "LICENSE",
         "THIRD-PARTY-NOTICES.md",
@@ -1686,7 +1686,7 @@ def test_the_splash_covers_the_seconds_before_the_window():
     직접 띄우는 그림만이 답이고, 그 그림은 Tk 로 그려진다 — 그래서 `tkinter` 를
     제외 목록에 되돌려 놓으면 그림이 조용히 사라진다.
     """
-    spec = (ROOT / "HomeBoard.spec").read_text(encoding="utf-8")
+    spec = (ROOT / "HomeSpread.spec").read_text(encoding="utf-8")
     assert "Splash(" in spec, "시작 그림이 없다"
     assert "splash.binaries" in spec, "그림에 필요한 파일이 함께 실리지 않는다"
     assert '"tkinter",' not in spec, "tkinter 를 제외하면 시작 그림이 뜨지 않는다"
@@ -1696,6 +1696,38 @@ def test_the_splash_covers_the_seconds_before_the_window():
     assert "_close_splash()" in app_src
     # 창을 보이기 '전에' 내려야 빈 바탕화면이 비치지 않는다.
     assert app_src.index("_close_splash()\n    window.show()") > 0
+
+
+def test_the_splash_shows_the_name_we_use_now():
+    """시작 그림이 지금 쓰는 이름을 보여야 한다.
+
+    2026-08-26 에 이름을 `HomeBoard` 에서 `HomeSpread` 로 갈았는데, 그림은 닷새 전
+    것이 그대로 남아 실행할 때마다 옛 이름이 떴다. 그리는 코드는 처음부터
+    `product.NAME` 을 읽고 있었다 — 틀린 것은 코드가 아니라 **다시 그리지 않은
+    산출물**이었고, 픽셀만으로는 그것을 알아낼 방법이 없다.
+
+    그래서 그릴 때 쓴 이름을 PNG 의 `tEXt` 조각에 함께 적는다. 여기서 그것을 꺼내
+    `product` 와 대조하면, 이름을 갈고 다시 그리지 않은 채로는 시험이 통과하지
+    못한다. 낡은 그림은 조용히 있지 못한다.
+    """
+    data = (ROOT / "assets" / "splash.png").read_bytes()
+
+    labels: dict[str, str] = {}
+    for match in re.finditer(rb"tEXt", data):
+        start = match.start() + 4
+        # tEXt 는 `키\0값` 이고, 길이는 앞의 4바이트가 말한다.
+        length = int.from_bytes(data[match.start() - 4 : match.start()], "big")
+        key, _, value = data[start : start + length].partition(b"\x00")
+        labels[key.decode("latin-1")] = value.decode("utf-8")
+
+    assert labels, "그림에 이름표가 없다 — scripts/make_splash.py 로 다시 그려라"
+    assert labels.get("Title") == product.NAME, (
+        f"시작 그림이 {labels.get('Title')!r} 을 보여준다. "
+        f"지금 이름은 {product.NAME!r} 이다 — scripts/make_splash.py 로 다시 그려라"
+    )
+    assert labels.get("Description") == product.TAGLINE, (
+        "시작 그림의 부제가 지금 것과 다르다 — scripts/make_splash.py 로 다시 그려라"
+    )
 
 
 def test_a_quiet_run_leaves_one_file_and_no_empty_folder():
@@ -1754,13 +1786,47 @@ def test_the_program_ships_as_a_folder_not_one_file():
     돌아오는데, 명세만 보아서는 되돌아간 줄 모른다. 그래서 여기서 붙잡는다.
     스토어에 올릴 MSIX 도 이 모양을 요구하므로 되돌릴 이유가 더 없다.
     """
-    spec = (ROOT / "HomeBoard.spec").read_text(encoding="utf-8")
+    spec = (ROOT / "HomeSpread.spec").read_text(encoding="utf-8")
     assert "COLLECT(" in spec, "폴더 배포가 아니다 — 실행할 때마다 압축을 푼다"
     assert "exclude_binaries=True" in spec, "EXE 가 아직 모든 것을 안고 있다"
 
     bat = (ROOT / "build_exe.bat").read_text(encoding="cp949")
     # 안내문이 배포 모양과 어긋나면, 사용자는 있지도 않은 파일을 찾는다.
-    assert r"dist\HomeBoard\HomeBoard.exe" in bat
+    assert r"dist\HomeSpread\HomeSpread.exe" in bat
+
+
+def test_building_never_deletes_the_users_backups():
+    """PyInstaller 의 COLLECT 는 만들기 전에 `dist\HomeSpread\` 를 통째로 지운다.
+
+    그 폴더는 exe 를 한 번이라도 실행하면 `backups\` 가 생기는 자리이기도 하다.
+    그래서 아무것도 하지 않으면 **빌드 한 번이 조용히 백업 전부 삭제**가 된다 —
+    2026-08-21 에 실제로 그렇게 잃었다. 되돌릴 길이 백업뿐인 앱에서 이것은 우리가
+    막아야 할 바로 그 사고이고, 약속("backups 는 사용자만 지운다")은 빌드
+    스크립트에도 걸린다.
+    """
+    bat = (ROOT / "build_exe.bat").read_text(encoding="cp949")
+    run_at = bat.index("-m PyInstaller")
+    stash_at = bat.index("keep_data.py stash")
+    assert stash_at < run_at, "빌드가 먼저 돌아 백업이 지워진 뒤에 치운다"
+    # 실패한 빌드 때문에 자료가 _keep 에 갇히면 안 된다 — 양쪽 갈래 모두 돌려놓는다.
+    assert bat.count("keep_data.py restore") >= 2, "빌드 실패 시 돌려놓지 않는다"
+
+    src = (ROOT / "scripts" / "keep_data.py").read_text(encoding="utf-8")
+    assert '"backups"' in src and '"logs"' in src
+
+    from importlib.util import module_from_spec, spec_from_file_location
+
+    spec = spec_from_file_location("keep_data", ROOT / "scripts" / "keep_data.py")
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert "backups" in module.PRECIOUS
+
+    # 구해 둔 것을 구하다가 잃는 일이 없어야 한다 — 덮어쓰지 않고 옆에 둔다.
+    with tempfile.TemporaryDirectory() as tmp:
+        taken = Path(tmp) / "backups"
+        taken.mkdir()
+        assert module._free(taken) != taken
+        assert not module._free(taken).exists()
 
 
 def test_the_source_offer_points_somewhere_real():
@@ -1893,7 +1959,7 @@ def test_the_privacy_policy_tells_the_whole_truth_in_both_languages():
     """
     text = (ROOT / "PRIVACY.md").read_text(encoding="utf-8")
 
-    for kept in ("backups/", "logs/", "cache/icons/", "settings.json"):
+    for kept in ("backups", "logs", "icons", "settings.json"):
         assert kept in text, f"{kept} 가 남는다는 사실을 말하지 않는다"
     assert "127.0.0.1:27015" in text, "기기와 어떻게 말하는지 밝히지 않는다"
     assert "PayPal" in text and "Microsoft Store" in text, "밖으로 나가는 경우 누락"
@@ -1902,8 +1968,15 @@ def test_the_privacy_policy_tells_the_whole_truth_in_both_languages():
 
     # 방침에 적은 파일 이름이 코드와 어긋나면, 어느 한쪽이 낡은 것이다.
     from ipsm.i18n import settings_path
+    from ipsm.paths import cache_root
 
     assert settings_path().name in text
+    # 아이콘 캐시가 임시 폴더로 옮겨 갔다는 사실도 방침에 있어야 한다. 폴더 이름을
+    # 코드에서 가져와 대조하므로, 이름만 바꾸고 방침을 안 고치면 여기서 걸린다.
+    assert cache_root().name in text, "아이콘 캐시가 어디 남는지 말하지 않는다"
+    assert "TEMP" in text, "임시 폴더에 둔다는 사실을 말하지 않는다"
+    # 문서 폴더를 클라우드와 동기화하는 사람에게는 백업도 함께 올라간다.
+    assert "OneDrive" in text, "동기화되는 문서 폴더에 대한 고지가 없다"
 
 
 def test_the_about_window_says_what_this_is_and_shows_the_originals():
@@ -2011,7 +2084,10 @@ def test_data_dirs_are_created_where_the_program_lives():
     assert root == data_root()
     for name in DATA_DIRS:
         assert (root / name).is_dir(), name
-    assert (root / "cache" / "icons").is_dir()
+    # 아이콘만 자리가 다르다 — 잃어도 되는 것이라 임시 폴더에 산다.
+    assert "cache" not in DATA_DIRS
+    assert (cache_root() / "icons").is_dir()
+    assert cache_root() != root
 
 
 
@@ -2033,6 +2109,112 @@ def test_unusable_folder_is_reported_instead_of_moved_elsewhere():
     assert problem is not None
     assert "폴더를 만들 수 없습니다" in problem
     assert "옮긴 뒤" in problem  # 무엇을 하면 되는지까지 말한다
+
+
+def test_the_backup_folder_never_lives_where_windows_may_clean_it():
+    """백업과 로그를 임시 폴더에 두지 않는다.
+
+    저장 공간 센스가 켜진 PC 에서 임시 파일 정리는 사고가 아니라 정상 동작이다.
+    거기에 백업을 두는 것은 **지우는 일을 OS 에 위임하는 것**이고, 그때 사라지는
+    백업은 사라졌다는 말조차 남기지 않는다. 되돌릴 길이 백업뿐인 앱에서 이것은
+    있어서는 안 되는 배치다.
+    """
+    import tempfile as _tempfile
+
+    from ipsm.paths import cache_root, data_root
+
+    temp = Path(_tempfile.gettempdir()).resolve()
+    root = data_root().resolve()
+    assert temp not in root.parents and root != temp, f"자료 폴더가 TEMP 안이다: {root}"
+    # 반대로 아이콘은 그 자리에 있어야 한다 — 지워져도 되는 것이라는 선언이다.
+    assert cache_root().resolve().parent == temp
+
+
+def test_the_data_folder_moves_out_of_the_install_dir_when_packaged():
+    """MSIX 로 설치되면 exe 옆은 쓸 수 없다 — 문서 폴더로 간다.
+
+    `C:\Program Files\WindowsApps\...` 는 관리자 권한으로도 쓸 수 없다는 것을
+    2026-08-21 에 직접 확인했다. 그러니 포장된 설치에서 exe 옆을 자료 폴더로 삼으면
+    '옮겨 주세요'라고 말할 수밖에 없는데, Store 로 설치한 앱은 사용자가 옮길 수
+    없으므로 그 안내는 막다른 길이다.
+
+    `%LOCALAPPDATA%` 도 답이 아니다 — 포장된 앱에서는 `Packages\...\LocalCache\`
+    로 조용히 옮겨져, 정확히 '사용자가 찾을 수 없는 곳'이 된다.
+    """
+    import ipsm.paths as paths
+    from ipsm import product
+
+    saved = (paths.is_frozen, paths.package_family_name, paths.documents_dir)
+    try:
+        paths.is_frozen = lambda: True
+        paths.package_family_name = lambda: "HomeSpread_abcdefghijklm"
+        paths.documents_dir = lambda: Path("D:/Personal/Documents")
+        assert paths.is_packaged()
+        assert paths.data_root() == Path("D:/Personal/Documents") / product.NAME
+
+        # 문서 폴더를 묻지 못해도 설치 폴더로 되돌아가지는 않는다.
+        paths.documents_dir = lambda: None
+        assert paths.data_root() == Path.home() / product.NAME
+
+        # 포장 밖이면 지금까지와 똑같다 — 방금 확인한 폴더 배포 동작은 그대로.
+        paths.package_family_name = lambda: None
+        assert not paths.is_packaged()
+        assert paths.data_root() == Path(sys.executable).resolve().parent
+    finally:
+        paths.is_frozen, paths.package_family_name, paths.documents_dir = saved
+
+
+def test_source_runs_are_never_mistaken_for_a_packaged_install():
+    """개발용 파이썬이 Store 판이면 **소스로 돌려도** 패키지 신원이 잡힌다.
+
+    이 프로젝트가 실제로 그렇다(`PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0`).
+    포장 여부를 신원만으로 판단하면 개발 중에 자료가 프로젝트 밖 문서 폴더로 흩어진다.
+    """
+    import ipsm.paths as paths
+
+    saved = paths.package_family_name
+    try:
+        paths.package_family_name = lambda: "PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0"
+        assert not paths.is_packaged(), "소스 실행을 포장된 설치로 잘못 읽는다"
+    finally:
+        paths.package_family_name = saved
+
+
+def test_the_advice_matches_what_the_user_can_actually_do():
+    """Store 로 설치한 앱은 사용자가 옮길 수 없다 — 그때는 옮기라고 말하지 않는다."""
+    import ipsm.paths as paths
+
+    saved = paths.is_packaged
+    try:
+        paths.is_packaged = lambda: True
+        message = paths._cannot_write(Path("C:/Program Files/WindowsApps/x/backups"))
+        assert "옮겨" not in message, "설치 폴더를 옮기라는 막다른 안내를 한다"
+        assert "권한" in message
+    finally:
+        paths.is_packaged = saved
+
+
+def test_the_package_check_answers_no_outside_a_package():
+    """실제로 이 프로세스에 물어본다 — 포장 밖이면 None 이어야 한다."""
+    from ipsm.paths import package_family_name
+
+    name = package_family_name()
+    assert name is None or isinstance(name, str)
+
+
+def test_the_documents_folder_is_asked_for_not_guessed():
+    """문서 폴더를 다른 드라이브로 옮겨 둔 PC 가 흔하다 — 지어낸 경로는 틀린다."""
+    src = (ROOT / "src" / "ipsm" / "paths.py").read_text(encoding="utf-8")
+    body = src[src.index("def documents_dir("): src.index("def data_root(")]
+    assert "SHGetKnownFolderPath" in body
+    # 환경 변수로 경로를 짓지 않는다 — 문서 폴더의 진짜 자리는 셸만 안다.
+    assert "environ" not in src and "getenv" not in src
+
+    from ipsm.paths import documents_dir
+
+    found = documents_dir()
+    if sys.platform == "win32":
+        assert found is not None and found.is_dir(), found
 
 
 # ----------------------------------------------------------------- 다국어
@@ -2193,3 +2375,71 @@ if __name__ == "__main__":
     print()
     print("모두 통과" if not failures else f"{failures}개 실패")
     raise SystemExit(1 if failures else 0)
+
+
+def test_the_exe_says_what_it_is():
+    """비어 있는 버전 리소스는 오탐을 부르고, 받은 사람에게도 아무 말을 하지 않는다.
+
+    2026-08-26 에 Defender 가 이 exe 를 `Trojan:Win32/Bearfoos.B!ml` 로 격리했다.
+    `!ml` 은 서명 목록이 아니라 **기계학습의 추정**이고, 그것이 나쁜 쪽으로 기우는
+    조건이 우리 것에 다 있었다 — 서명 없음, 아이콘 없음, 회사·제품·설명이 전부 빈
+    버전 리소스. 서명은 스토어가 대신 해 주지만 뒤의 둘은 우리가 채워야 한다.
+    채운다고 탐지가 반드시 사라지는 것은 아니나, 비워 두면 받은 사람이 속성 창을
+    열어도 이것이 무엇이고 누가 만들었는지 알 방법이 없다.
+
+    숫자는 `version.py` 에서만 온다. 여기에 또 적으면 빌드마다 올라가는 패치 번호와
+    갈라서고, 그 어긋남은 실행해 보기 전에는 드러나지 않는다.
+    """
+    from ipsm import product
+
+    spec = (ROOT / "HomeSpread.spec").read_text(encoding="utf-8")
+    assert "version=_VERSION_RES" in spec, "exe 에 버전 리소스를 붙이지 않는다"
+    assert "icon=" in spec, "exe 에 아이콘을 붙이지 않는다"
+    assert (ROOT / "assets" / "app.ico").exists(), "아이콘 파일이 없다"
+
+    # 숫자를 spec 이 직접 적지 않는지 — version.py 에서 받아 와야 한다.
+    assert "version.VERSION_TUPLE" in spec, "판 번호를 version.py 에서 받지 않는다"
+
+    # 채워 넣는 칸들이 실제로 이름을 말하는지.
+    assert product.NAME in product.PUBLISHER
+    assert product.NAME in product.COPYRIGHT
+    assert "Copyright" in product.COPYRIGHT
+
+
+def test_the_write_failure_message_names_controlled_folder_access():
+    """"권한을 확인하세요"만으로는 빠져나올 수 없는 경우가 있다.
+
+    Windows 보안의 제어된 폴더 액세스는 허용 목록에 없는 앱이 문서·바탕화면에 쓰는
+    것을 막는다. 그때 **폴더 권한은 멀쩡하므로** 권한만 들여다보는 사용자는 원인에
+    닿지 못한다. 2026-08-26 에 우리가 그 벽에 부딪혔다.
+
+    더 나쁜 것은 포장하지 않은 판의 다음 줄이었다 — "바탕화면이나 문서 폴더로
+    옮기라"고 권하는데, 그 둘이 바로 제어된 폴더 액세스가 기본으로 지키는 자리다.
+    같은 벽으로 다시 보내는 안내였다. 그래서 네 갈래 모두가 이것을 말해야 한다.
+    """
+    from ipsm import paths
+
+    hint = "제어된 폴더 액세스"
+    seen = []
+    for packaged in (True, False):
+        real = paths.is_packaged
+        paths.is_packaged = lambda: packaged
+        try:
+            seen.append(paths._cannot_write(Path("X:/nowhere")))
+            with tempfile.TemporaryDirectory() as tmp:
+                blocked = Path(tmp) / "blocked"
+                blocked.write_text("나는 폴더가 아니다", encoding="utf-8")
+                real_root = paths.data_root
+                paths.data_root = lambda: blocked
+                try:
+                    _, problem = paths.ensure_ready()
+                finally:
+                    paths.data_root = real_root
+            assert problem, "폴더를 만들 수 없는데 아무 말도 하지 않는다"
+            seen.append(problem)
+        finally:
+            paths.is_packaged = real
+
+    assert len(seen) == 4
+    for message in seen:
+        assert hint in message, "제어된 폴더 액세스를 짚지 않는다:\n" + message

@@ -1,0 +1,7 @@
+{
+  "_주석": "Partner Center 의 [패키지] 또는 [제품 관리 > 제품 ID] 에 적힌 값을 그대로 옮긴다. 여기가 어긋나면 업로드가 거부된다 — 스토어는 이 셋으로 제품을 알아본다.",
+  "Name": "YOUNGJONGLEE.HomeSpread",
+  "Publisher": "CN=D68EF2DF-56B8-44DF-BCF5-B40E38E8607A",
+  "PublisherDisplayName": "YOUNGJONG, LEE",
+  "_주석2": "Partner Center 의 Product identity 에서 그대로 옮겼다(2026-08-26). Store ID 9NT54QJ7XQNL / PFN YOUNGJONGLEE.HomeSpread_ea89tz3tby8xy. 여기에는 '서명되지 않은 네임스페이스' OID 를 절대 붙이지 않는다 - 스토어가 Microsoft 인증서로 다시 서명하므로 붙이면 오히려 거부된다."
+}

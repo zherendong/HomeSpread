@@ -15,3 +15,7 @@ dist*/
 
 # 고른 언어 등 이 PC 의 설정
 settings.json
+
+# 내려받은 빌드 도구(Windows SDK BuildTools). Microsoft 것이고 용량이 크다 —
+# 필요하면 누구나 NuGet 에서 같은 것을 받을 수 있으므로 저장소에 싣지 않는다.
+tools/

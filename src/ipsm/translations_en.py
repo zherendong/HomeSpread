@@ -21,6 +21,25 @@ TRANSLATIONS: dict[str, str] = {
         "Cannot write files to '{where}'.\n"
         "This app always saves a backup before changing your Home Screen. If the backup\n"
         "cannot be written, nothing is applied. Move the program to a writable folder.",
+    # 권한은 멀쩡한데 막히는 경우가 하나 있다 — 그 한 줄을 네 갈래 모두에 붙인다.
+    "폴더 권한과 별개로, Windows 보안의 '제어된 폴더 액세스'가 막고 있을 수도\n"
+    "있습니다. Windows 보안 › 바이러스 및 위협 방지 › 랜섬웨어 방지 에서\n"
+    "이 앱을 허용해 주세요.":
+        "Apart from folder permissions, Windows Security's Controlled Folder Access\n"
+        "may be blocking it. Allow this app under Windows Security > Virus & threat\n"
+        "protection > Ransomware protection.",
+    # Store 로 설치한 앱은 사용자가 옮길 수 없다 — 그때는 옮기라고 말하지 않는다.
+    "'{where}' 에 폴더를 만들 수 없습니다 ({why}).\n"
+    "이 폴더의 쓰기 권한을 확인해 주세요.":
+        "Cannot create folders in '{where}' ({why}).\n"
+        "Please check that you have permission to write to this folder.",
+    "'{where}' 에 파일을 쓸 수 없습니다.\n"
+    "이 앱은 홈화면을 바꾸기 전에 반드시 백업을 남깁니다. 백업을 쓸 수 없으면\n"
+    "적용도 하지 않습니다. 이 폴더의 쓰기 권한을 확인해 주세요.":
+        "Cannot write files to '{where}'.\n"
+        "This app always saves a backup before changing your Home Screen. If the backup\n"
+        "cannot be written, nothing is applied. Please check that you have permission to\n"
+        "write to this folder.",
 
     # ------------------------------------------------------------------ 백업
     "{stamp} {dash} {reason} {dash} {pages}페이지 {items}개 항목":

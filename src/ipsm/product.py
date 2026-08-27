@@ -18,10 +18,22 @@ from __future__ import annotations
 from urllib.parse import urlencode
 
 #: 스토어의 "앱 이름" 칸에 그대로 들어간다. Apple 상표를 넣지 않는다.
-NAME = "HomeBoard"
+NAME = "HomeSpread"
 
 #: 이름 아래에 붙는 부제. 여기서는 호환성 표기가 허용된다.
 TAGLINE = "Mobile layout manager for iOS"
+
+#: exe 에 새겨지는 저작권 줄. 소스 머리말과 같은 말이어야 하므로 여기서 한 번 짓는다.
+COPYRIGHT = f"Copyright (C) 2026 {NAME} contributors"
+
+#: exe 의 "회사 이름" 칸. 회사가 없는 GPL 프로젝트라 기여자를 그대로 적는다.
+#:
+#: **비워 두는 것이 가장 나쁘다.** 2026-08-26 에 Defender 가 우리 exe 를
+#: `Trojan:Win32/Bearfoos.B!ml` 로 격리했다 — `!ml` 은 기계학습의 추정이고, 그 추정이
+#: 나쁜 쪽으로 기우는 조건 중 하나가 **서명도 없고 버전 리소스도 비어 있는 실행 파일**
+#: 이다. 서명은 스토어가 해 주지만 버전 리소스는 우리가 넣어야 한다. 이름을 대는 것은
+#: 오탐을 줄이는 일이자, 받은 사람이 속성 창에서 이것이 무엇인지 볼 수 있게 하는 일이다.
+PUBLISHER = f"{NAME} contributors"
 
 #: 후원을 받는 PayPal 계정.
 DONATE_ACCOUNT = "forad@ujak.net"
@@ -60,8 +72,10 @@ LICENSE_SPDX = "GPL-3.0-or-later"
 #: 소스를 받을 수 있는 곳. GPL 은 실행 파일을 건네준 사람에게 소스를 받을 길을
 #: 함께 주기를 요구한다. 정보 창이 이 주소를 링크로 보여준다.
 #: 저장소를 옮기면 여기부터 고친다 — 닿지 않는 주소는 없는 주소와 같고, GPL 아래에서
-#: 그것은 의무 불이행이다.
-SOURCE_URL = "https://github.com/humanlyj/HomeBoard"
+#: 그것은 의무 불이행이다. 2026-08-26 에 저장소를 `HomeBoard` 에서 옮겼다 — 이름을
+#: 먼저 갈고 주소는 저장소가 실제로 옮겨진 뒤에 갈았다. 순서를 뒤집으면 그 사이에
+#: 나간 판본이 없는 주소를 안내한다.
+SOURCE_URL = "https://github.com/humanlyj/HomeSpread"
 
 #: 개인정보 처리방침 원문의 주소. Partner Center 가 Win32 제품에 **언제나** 요구하는
 #: 칸이고(정책 10.5.1), 방침은 exe 안에도 실려 정보 창에서 읽을 수 있다. 두 곳이

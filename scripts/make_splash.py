@@ -74,6 +74,15 @@ def draw() -> Path:
     )
     painter.end()
 
+    # 그린 이름을 그림 안에 글자로도 남긴다(PNG 의 tEXt 조각).
+    #
+    # 픽셀만 남기면 **그림이 낡았다는 것을 아무도 알 수 없다.** 2026-08-26 에
+    # 실제로 그랬다 — 이름을 `HomeBoard` 에서 갈았는데 그림은 닷새 전 것이 그대로
+    # 남아, 시작할 때마다 옛 이름이 떴다. 픽셀을 읽어 이름을 알아내는 시험은 만들 수
+    # 없지만, 그릴 때 쓴 이름을 함께 적어 두면 `product.NAME` 과 대조할 수 있다.
+    image.setText("Title", product.NAME)
+    image.setText("Description", product.TAGLINE)
+
     OUT.parent.mkdir(parents=True, exist_ok=True)
     assert image.save(str(OUT), "PNG"), "그림을 저장하지 못했다"
     del app

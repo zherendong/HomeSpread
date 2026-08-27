@@ -1,12 +1,12 @@
 # 함께 실려 오는 것들
 
-HomeBoard 는 아래 라이브러리 위에 서 있다. 이 파일은 손으로 적지 않는다 —
+HomeSpread 는 아래 라이브러리 위에 서 있다. 이 파일은 손으로 적지 않는다 —
 `scripts/gen_notices.py` 가 설치된 것을 그대로 읽어 다시 쓴다.
 
 꾸러미 92개. 각 줄의 **원문**은 `third_party_licenses/` 안의 파일이다.
 
 > **GPL 이 이 앱 전체의 라이선스를 정한다.** `pymobiledevice3` 가
-> GPL-3.0-or-later 이고 우리는 그것을 함께 실어 배포하므로, HomeBoard 자체도
+> GPL-3.0-or-later 이고 우리는 그것을 함께 실어 배포하므로, HomeSpread 자체도
 > GPL-3.0-or-later 로 공개한다. 자세한 것은 `LICENSE` 와 README 의 라이선스 절.
 
 | 꾸러미 | 판 | 라이선스 | 원문 | 원산지 |

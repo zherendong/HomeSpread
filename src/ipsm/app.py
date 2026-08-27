@@ -1,5 +1,5 @@
-# HomeBoard — iPhone 홈화면을 PC 한 화면에서 보고 편집한다.
-# Copyright (C) 2026 HomeBoard contributors
+# HomeSpread — iPhone 홈화면을 PC 한 화면에서 보고 편집한다.
+# Copyright (C) 2026 HomeSpread contributors
 #
 # 이 프로그램은 자유 소프트웨어입니다. 자유 소프트웨어 재단이 발표한 GNU 일반 공중
 # 사용 허가서 3판 또는 (선택에 따라) 그 이후 판의 조건에 따라 재배포하거나 수정할
@@ -33,7 +33,7 @@ if str(_SRC) not in sys.path:
 
 from ipsm import i18n  # noqa: E402
 from ipsm.i18n import tr  # noqa: E402
-from ipsm.paths import ensure_ready  # noqa: E402
+from ipsm.paths import cache_root, ensure_ready  # noqa: E402
 from ipsm import product  # noqa: E402
 from ipsm.version import VERSION_TEXT, version_line  # noqa: E402
 
@@ -81,7 +81,8 @@ def main() -> int:
     # 설정을 못 읽어도(자리가 없거나 깨졌어도) PC 언어로 되돌아가므로 여기서 막히지 않는다.
     language = i18n.start()
 
-    # exe 옆에 logs · backups · cache 를 만들어 둔다. 기기에 손대기 전에 확인한다.
+    # logs · backups 를 만들어 둔다. 기기에 손대기 전에 확인한다 — 백업을 쓸 수
+    # 없는 자리라면 그 사실을 지금 알아야 하고, 아직 아무것도 쓰지 않은 때다.
     root, problem = ensure_ready()
     if problem:
         return _fatal(problem)
@@ -93,6 +94,7 @@ def main() -> int:
     # 것이고, 그것을 가려낼 수 있는 곳은 이 한 줄뿐이다.
     log.info("%s", version_line())
     log.info("자료 폴더: %s", root)
+    log.info("아이콘 캐시: %s", cache_root())
     log.info("언어: %s", language)
 
     try:
