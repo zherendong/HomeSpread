@@ -77,7 +77,7 @@ GPL 이 되므로, HomeSpread 도 같은 라이선스로 공개한다. 실행 �
 **방침은 코드가 하는 일과 같아야 한다(2026-08-20):** 스토어 정책 10.5.1 은 Win32
 제품에 **언제나** 개인정보 처리방침을 요구한다. 우리는 아무것도 수집하지 않으므로 쓸 말이
 적지만, 대신 **남기는 것**을 빠짐없이 적었다 — `backups/`·`logs/`·`cache/icons/`·
-`settings.json`, `127.0.0.1:27015`, 앞 4글자만 남는 UDID, 눌렀을 때만 열리는 PayPal 과
+`settings.json`, `127.0.0.1:27015`, 앞 4글자만 남는 UDID, 눌렀을 때만 열리는 후원 창구와
 Store. 방침이 코드와 어긋나면 그것은 곧 거짓말이므로, 시험이 방침 원문에서 이 이름들을
 찾고 `settings_path()` 와 대조한다. 원문은 exe 안에도 실어 정보 창에서 읽는다 — 인터넷
 없이 도는 프로그램의 방침을 인터넷에서만 읽게 할 수는 없다.
@@ -167,6 +167,17 @@ iOS 가 되붙인 4개 중 하나가 Apple 기본 앱 **돋보기**(`com.apple.M
 보면 개발 중에 자료가 프로젝트 밖으로 흩어진다. 그리고 포장된 설치에서는 "프로그램을
 옮겨 주세요"가 **막다른 길**이므로 그때만 다른 안내를 한다.
 
+**후원 창구는 받는 사람의 나라가 정한다(2026-08-28):** PayPal 후원 단추는 열리지
+않았다 — `Donations aren't supported in this organization's country`. 두 겹이었다:
+후원 상품은 **비즈니스 계정**을 요구하고, 그와 별개로 **한국에 등록된 계정**은 후원을
+받을 수 없다. 비즈니스로 올려도 두 번째 벽은 그대로라 그 길은 막혀 있다. Buy Me a
+Coffee 도 한국 정산을 하지 않고, Ko-fi 는 PayPal·Stripe 로 내보내므로 같은 벽을 물려
+받는다. 열린 것은 **GitHub Sponsors** 였다 — Stripe **Connect Express** 를 쓰는데
+그쪽은 단독 Stripe 가입과 달리 한국을 받아 준다. 실제로 열어 `Active` 까지 확인했다.
+대가는 하나 — **후원하려면 GitHub 계정이 필요하다.** 페이지는 로그아웃 상태에서도
+열리지만 후원 단계에서 로그인을 요구한다. 우리 사용자는 개발자가 아닐 수 있으므로,
+단추 이름에 `GitHub` 을 적어 **누르기 전에** 알린다.
+
 **변경 이력:**
 | 날짜 | 변경 내용 | 대상 | 사유 |
 |------|----------|------|------|
@@ -214,3 +225,6 @@ iOS 가 되붙인 4개 중 하나가 Apple 기본 앱 **돋보기**(`com.apple.M
 | 2026-08-26 | 시작 그림이 옛 이름을 보여주던 것 수정 — 그림에 이름표를 새긴다 | assets/splash.png, scripts/make_splash.py `setText`, tests/test_core.py | 그리는 코드는 처음부터 `product.NAME` 을 읽고 있었다. 틀린 것은 **다시 그리지 않은 산출물**이라 소스를 아무리 읽어도 잡히지 않았다. 픽셀에서 이름을 읽어낼 수는 없으므로, 그릴 때 쓴 이름을 PNG 의 `tEXt` 조각에 함께 적고 시험이 `product` 와 대조한다 — 낡은 그림이 조용히 있지 못한다 |
 | 2026-08-26 | 스토어 신원 적용 + 업로드용 패키지 | packaging/identity.json, dist/packages/HomeSpread_1.0.21.0_x64.msix | Partner Center 의 Product identity 를 그대로 옮겼다(Store ID 9NT54QJ7XQNL). 옛 이름이 든 1.0.19·1.0.20 패키지는 지웠다 — 고를 수 있는 자리에 두면 언젠가 잘못 올라간다 |
 | 2026-08-27 | 스토어 목록 원문 + 화면 그림 — **시연 배치로 찍는다** | _workspace/06_store-listing.md(신규), scripts/make_demo_layout.py·make_screenshots.py(신규), _workspace/screenshots/, 05_store-submission-checklist.md §3, .gitignore | 스토어 페이지는 영구히 공개되고 내린 뒤에도 색인에 남는다. 홈화면 그림 한 장은 그 사람이 무슨 앱을 쓰는지를 통째로 알려주므로, 사용자의 진짜 배치 대신 Apple 기본 앱만의 배치를 지어 찍었다. 손으로 찍지 않는 이유는 시작 그림 때와 같다 — 이름이 바뀌는 날 아무도 다시 찍지 않는다. 영어 그림은 앱 이름까지 영어로 갈아 끼운다(이름은 기기 언어를 따라온다) |
+| 2026-08-28 | 검색어를 언어별로 가른다 — en-us 의 한국어 셋을 영어로 교체 | _workspace/06_store-listing.md §2, 05_store-submission-checklist.md §3 | 검색어는 목록마다 따로 저장되므로 언어를 섞을 이유가 없다. 한국어 낱말은 영어권 검색에 닿지 않아 일곱 자리 중 셋을 그냥 버리는 셈이었다. 앞의 넷(iPhone·iOS 가 든 낱말)은 어느 언어에서나 검색되므로 그대로 두고, 뒤의 셋만 갈았다 |
+| 2026-08-28 | **후원 창구를 PayPal → GitHub Sponsors 로** | product.py `DONATE_ACCOUNT`·`donate_url`(`DONATE_ITEM`·`DONATE_CURRENCY`·`urlencode` 삭제), .github/FUNDING.yml(`custom:` → `github:`), ui/main_window.py, translations_en.py, PRIVACY.md ko·en, README.md §후원, _workspace/05·06, tests/test_core.py | PayPal 이 한국 계정의 후원을 막는다. 비즈니스 계정으로 올려도 풀리지 않아 계정 등급이 아니라 **나라**가 벽이다. GitHub Sponsors 는 Stripe Connect Express 라 한국이 열린다. 시험도 함께 고쳤다 — 주소 모양만 보던 것을 **어느 창구인지**까지 보게 하고, FUNDING.yml 대조는 주소가 아니라 손잡이로 한다 |
+| 2026-08-28 | 스토어 목록의 키워드 칸 — 초점을 뺀 뒤 저장하고, 새로 고쳐 확인한다 | _workspace/05_store-submission-checklist.md §3 | 칩이 눈에 보이는 것은 저장의 증거가 아니었다. `he-select` 위젯이 폼을 '변경됨'으로 표시하지 않아 `저장` 이 아무 요청도 보내지 않았고, 두 번을 그렇게 잃고서야 알았다. 확인은 저장이 아니라 **다시 읽기**로 한다 |

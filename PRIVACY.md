@@ -71,9 +71,10 @@ Windows 가 공간이 부족할 때 치워도 잃는 것이 없고, 백업이 �
 프로그램이 인터넷에 접속하는 경우는 **당신이 눌렀을 때** 뿐이고, 그때도 브라우저를 열어
 줄 뿐이다.
 
-- **후원 버튼** — PayPal 후원 페이지를 브라우저로 연다. 결제는 전적으로 PayPal 안에서
-  이루어지며, 우리는 카드번호·주소 등 결제 정보를 받지도 보지도 않는다. PayPal 에서
-  일어나는 일에는 PayPal 의 개인정보 처리방침이 적용된다.
+- **후원 버튼** — GitHub Sponsors 페이지를 브라우저로 연다. 후원하려면 GitHub 계정이
+  필요하고, 결제는 전적으로 GitHub 안에서 이루어진다. 우리는 카드번호·주소 등 결제
+  정보를 받지도 보지도 않으며, 누가 후원했는지는 GitHub 이 알려 주는 범위에서만 안다.
+  그곳에서 일어나는 일에는 GitHub 의 개인정보 처리방침이 적용된다.
 - **Apple Devices 설치 안내** — Microsoft Store 앱을 연다.
 
 두 경우 모두 당신에 관한 정보를 함께 실어 보내지 않는다.
@@ -160,9 +161,10 @@ is **never** pruned — removing your way back is not ours to decide.
 
 Only when you click, and even then the program merely opens your browser.
 
-- **Donate button** — opens PayPal's donation page. Payment happens entirely inside PayPal;
-  we never receive or see card numbers, addresses, or any other payment detail. PayPal's own
-  privacy policy governs what happens there.
+- **Donate button** — opens the GitHub Sponsors page. Sponsoring requires a GitHub account,
+  and payment happens entirely inside GitHub; we never receive or see card numbers, addresses,
+  or any other payment detail, and we learn who sponsored only as far as GitHub tells us.
+  GitHub's own privacy policy governs what happens there.
 - **Apple Devices install prompt** — opens the Microsoft Store app.
 
 Neither carries information about you.

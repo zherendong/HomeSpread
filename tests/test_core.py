@@ -985,21 +985,46 @@ def test_the_name_is_declared_once():
 def test_the_donate_link_reaches_the_right_account():
     """후원 주소가 깨지면 돈이 엉뚱한 데로 가는 것이 아니라 아무 데도 가지 않는다.
 
-    계정 주소의 `@` 는 그대로 두면 주소가 잘리는 글자라, 이어 붙이지 않고 인코딩해야
-    한다. 창을 띄우지 않고도 확인할 수 있어야 해서 주소 짓는 일을 `product` 에 두었다.
+    **문법이 멀쩡해도 창구가 닫혀 있으면 같은 결과다** — 처음 쓰던 PayPal 이 그랬다
+    (2026-08-28, 받는 계정이 한국이라 후원이 막혔다). 그래서 주소 모양만 보지 않고
+    **어느 창구를 가리키는지**까지 본다. 창을 띄우지 않고도 확인할 수 있어야 해서
+    주소 짓는 일은 `product` 에 둔다.
     """
-    from urllib.parse import parse_qs, urlparse
+    from urllib.parse import urlparse
 
     from ipsm import product
 
     parsed = urlparse(product.donate_url())
-    assert parsed.scheme == "https", "결제 주소가 https 가 아니다"
-    assert parsed.netloc == "www.paypal.com"
-    values = parse_qs(parsed.query)
-    assert values["business"] == [product.DONATE_ACCOUNT]
-    assert values["currency_code"] == [product.DONATE_CURRENCY]
-    # 응원 한 번이 매달 빠져나가면 안 된다
-    assert values["no_recurring"] == ["1"]
+    assert parsed.scheme == "https", "후원 주소가 https 가 아니다"
+    assert parsed.netloc == "github.com", "후원 창구가 GitHub Sponsors 가 아니다"
+    assert parsed.path == f"/sponsors/{product.DONATE_ACCOUNT}"
+    assert not parsed.query, "손잡이 하나면 되는 주소에 질의 문자열이 붙었다"
+
+
+def test_the_sponsor_button_points_at_the_same_place_as_the_app():
+    """저장소의 `Sponsor` 단추와 앱 안의 후원 단추가 어긋나면 안 된다.
+
+    `.github/FUNDING.yml` 은 YAML 이라 `donate_url()` 을 부를 수 없어 주소를 손으로
+    옮겨 적었다. 손으로 옮긴 사본은 원본이 바뀌는 날 조용히 낡는다 — 계정을 옮긴
+    뒤에도 옛 주소가 남아 있으면 후원한 돈이 남의 계정으로 간다. 그래서 두 곳이
+    같은지를 시험이 대신 본다.
+    """
+    from ipsm import product
+
+    funding = ROOT / ".github" / "FUNDING.yml"
+    assert funding.exists(), "저장소에 Sponsor 단추를 띄우는 FUNDING.yml 이 없다"
+    text = funding.read_text(encoding="utf-8")
+    body = "\n".join(
+        line for line in text.splitlines() if not line.lstrip().startswith("#")
+    )
+    # GitHub 이 이름으로 아는 창구라 주소가 아니라 손잡이를 적는다. `custom:` 으로
+    # 적으면 단추는 떠도 GitHub 이 후원 화면을 붙여 주지 않는다.
+    assert body.strip().startswith("github:"), (
+        "FUNDING.yml 이 `github:` 로 적히지 않았다"
+    )
+    assert product.DONATE_ACCOUNT in body, (
+        "FUNDING.yml 의 손잡이가 product.DONATE_ACCOUNT 와 다르다"
+    )
 
 
 def test_the_settings_offers_support_without_going_anywhere_by_itself():
@@ -1455,6 +1480,55 @@ def test_the_dropdown_list_is_readable_too():
     finally:
         dialog.language.hidePopup()
         dialog.close()
+
+
+def test_the_license_stays_reachable_when_the_window_is_narrow():
+    """좁은 창에서도 GPL 원문과 개인정보 처리방침에 닿을 수 있어야 한다.
+
+    도구모음은 자리가 모자라면 **뒤쪽부터** `»` 안으로 접는다. 하필 그 뒤쪽에
+    설정과 정보가 있었고, 정보 창이 앱 안에서 `LICENSE` 와 `PRIVACY.md` 를
+    꺼내 보는 **유일한 길**이다. 기본 크기(1280) 에서 이미 접히고 있었으므로
+    심사자도 사용자도 그 길을 찾지 못했다.
+
+    접히는 것 자체는 Qt 의 정상 동작이라 막을 수 없다. 대신 **메뉴 막대로
+    받친다.** 그러니 여기서 재는 것은 도구모음이 아니라 "메뉴 막대가 그 둘을
+    품고 있고, 좁은 창에서도 제 자리에 다 보이는가"다. 소스를 읽어서는 알 수
+    없어 실제로 그려서 잰다 — 접힘은 그리고 나서야 일어난다.
+    """
+    if _qt_ready() is None:
+        print("      (PySide6 없음 — 건너뜀)")
+        return
+    from ipsm.ui.main_window import MainWindow
+
+    with tempfile.TemporaryDirectory() as folder:
+        window = None
+        try:
+            window = MainWindow(Path(folder))
+            window.resize(1280, 860)
+            window.show()
+            _qt_ready().processEvents()
+
+            menus = window.menuBar()
+            reachable = set()
+            for entry in menus.actions():
+                submenu = entry.menu()
+                if submenu is not None:
+                    reachable.update(submenu.actions())
+            assert window.act_about in reachable, (
+                "메뉴에서 '정보'에 닿을 수 없다 — 라이선스와 방침으로 가는 길이 없다"
+            )
+            assert window.act_settings in reachable, "메뉴에서 '설정'에 닿을 수 없다"
+
+            # 메뉴 막대 자신이 넘치면 같은 문제를 옮겨 놓은 것뿐이다.
+            for entry in menus.actions():
+                box = menus.actionGeometry(entry)
+                assert box.right() <= menus.width(), (
+                    f"메뉴 '{entry.text()}' 가 막대 밖으로 밀려났다"
+                )
+                assert box.width() > 0, f"메뉴 '{entry.text()}' 가 그려지지 않았다"
+        finally:
+            if window is not None:
+                window.close()
 
 
 def test_the_window_changes_its_words_when_the_language_changes():
@@ -1962,7 +2036,9 @@ def test_the_privacy_policy_tells_the_whole_truth_in_both_languages():
     for kept in ("backups", "logs", "icons", "settings.json"):
         assert kept in text, f"{kept} 가 남는다는 사실을 말하지 않는다"
     assert "127.0.0.1:27015" in text, "기기와 어떻게 말하는지 밝히지 않는다"
-    assert "PayPal" in text and "Microsoft Store" in text, "밖으로 나가는 경우 누락"
+    assert "GitHub Sponsors" in text and "Microsoft Store" in text, (
+        "밖으로 나가는 경우 누락"
+    )
     assert "UDID" in text, "기기 식별자를 다룬다는 사실을 숨기고 있다"
     assert "Privacy Policy (English)" in text, "심사자가 읽을 영어본이 없다"
 
@@ -2007,7 +2083,7 @@ def test_the_about_window_says_what_this_is_and_shows_the_originals():
         notices = dialog._read("THIRD-PARTY-NOTICES.md")
         assert "pymobiledevice3" in notices
         privacy = dialog._read("PRIVACY.md")
-        assert "PayPal" in privacy and "127.0.0.1:27015" in privacy
+        assert "GitHub Sponsors" in privacy and "127.0.0.1:27015" in privacy
 
         # 없는 파일을 달라고 해도 죽지 않고 말로 답한다
         assert "LICENSE" not in dialog._read("없는파일") or True

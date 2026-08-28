@@ -239,19 +239,26 @@ backups/20260819_143116_probe.plist     이 시점의 홈화면 (복원용)
 
 ## 후원
 
-설정 창(도구모음의 **설정**) 아래에 PayPal 후원 단추가 있다. 눌러야만 기본 브라우저가
-열리고, 창을 띄우는 것만으로는 아무 데도 연결하지 않는다. 받는 계정은
-`src/ipsm/product.py` 한 곳에만 적혀 있다.
+설정 창(도구모음의 **설정**) 아래에 GitHub Sponsors 후원 단추가 있다. 눌러야만 기본
+브라우저가 열리고, 창을 띄우는 것만으로는 아무 데도 연결하지 않는다. 받는 계정은
+`src/ipsm/product.py` 의 `DONATE_ACCOUNT` 한 곳에만 적혀 있고, 저장소 위쪽의 `Sponsor`
+단추(`.github/FUNDING.yml`)가 같은 곳을 가리키는지는 시험이 대조한다.
 
-주소에 `no_recurring=1` 을 실어 정기 결제 칸을 접어 둔다 — 한 번 응원하려던 사람이
-매달 빠져나가는 것을 뒤늦게 아는 일이 없어야 한다.
+**처음에는 PayPal 이었다.** 받는 계정이 한국에 등록돼 있으면 PayPal 은
+`Donations aren't supported in this organization's country` 로 막는다 — 비즈니스
+계정으로 올려도 풀리지 않고, 한국 계정은 애초에 국내 후원자에게서 받는 경로가 없다.
+GitHub Sponsors 는 Stripe **Connect Express** 를 쓰는데 그쪽은 한국을 받아 준다.
+
+후원하려면 **GitHub 계정이 필요하다.** 로그아웃 상태에서도 페이지는 열리지만 후원
+단계에서 로그인을 요구한다. 그래서 단추에 `GitHub` 이라고 적어 둔다 — 눌러 보고서야
+가입하라는 화면을 만나는 것보다, 누르기 전에 아는 편이 낫다.
 
 > **스토어에 올릴 때:** Microsoft Store 정책 10.8.2 는 *대가 없는* 자발적 후원에
-> 한해 외부 결제(PayPal 같은 secure third-party purchase API)를 허용한다. 후원의
-> 대가로 기능을 더 주거나 광고를 없애 주면 그 순간 Microsoft 인앱 결제 API 를 써야
-> 한다. 그래서 이 단추는 **아무것도 주지 않는다.** 제출할 때 Partner Center 에
-> third-party purchase API 사용을 신고해야 하고, 결제 직전에 결제 제공자가 누구인지
-> 밝혀야 한다(단추에 PayPal 이라고 적혀 있는 이유).
+> 한해 외부 결제(secure third-party purchase API)를 허용한다. 후원의 대가로 기능을
+> 더 주거나 광고를 없애 주면 그 순간 Microsoft 인앱 결제 API 를 써야 한다. 그래서 이
+> 단추는 **아무것도 주지 않는다.** 제출할 때 Partner Center 에 third-party purchase
+> API 사용을 신고해야 하고, 결제 직전에 결제 제공자가 누구인지 밝혀야 한다(단추에
+> GitHub 이라고 적혀 있는 이유).
 
 ## 라이선스
 

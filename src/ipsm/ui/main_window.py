@@ -80,6 +80,18 @@ QListWidget {
     background: #1e2230; color: #dde2ee; border: 1px solid #2c3245; border-radius: 6px;
 }
 
+/* 메뉴 막대 — 도구모음이 좁아 접힐 때도 설정·정보에 닿는 길.
+   펼쳐지는 메뉴(QMenu)는 QMenuBar 와 다른 위젯이라 따로 칠하지 않으면
+   Windows 기본 흰 바탕이 그대로 얹힌다 (콤보 목록 때와 같은 함정). */
+QMenuBar { background: #1b1f29; color: #e6e9f0; border: none; padding: 2px 4px; }
+QMenuBar::item { background: transparent; padding: 4px 10px; border-radius: 5px; }
+QMenuBar::item:selected { background: #2a3044; }
+QMenuBar::item:pressed { background: #3a4462; }
+QMenu { background: #232838; color: #e6e9f0; border: 1px solid #3a4462; padding: 4px; }
+QMenu::item { padding: 5px 22px; border-radius: 4px; }
+QMenu::item:selected { background: #3a4462; }
+QMenu::separator { height: 1px; background: #333a50; margin: 4px 8px; }
+
 /* 도구모음 */
 QToolBar { background: #1b1f29; border: none; spacing: 3px; padding: 4px; }
 QToolBar QToolButton {
@@ -273,9 +285,13 @@ class SettingsDialog(QDialog):
     찾을 수 있다. 그래서 이 목록만은 `tr()` 을 거치지 않는다.
 
     후원 단추는 **누른 사람만** 바깥으로 나간다. 앱이 스스로 어딘가에 접속하는 일은
-    없고, 누르면 기본 브라우저에 PayPal 결제 창이 열린다. 이 앱은 무료이고 소스가
+    없고, 누르면 기본 브라우저에 GitHub Sponsors 가 열린다. 이 앱은 무료이고 소스가
     공개되어 있으므로, 후원은 갚아야 할 것이 아니라 응원이다 — 그래서 안 눌러도
     아무것도 달라지지 않는다는 말을 함께 적는다.
+
+    단추에 **어디로 가는지를 이름으로 적는다.** 후원하려면 GitHub 계정이 필요한데,
+    이 앱의 사용자는 개발자가 아닐 수 있다. 눌러 보고서야 가입하라는 화면을 만나는
+    것보다, 누르기 전에 아는 편이 낫다.
     """
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
@@ -308,7 +324,7 @@ class SettingsDialog(QDialog):
         support.setWordWrap(True)
         support.setStyleSheet("color:#8f97ab; font-size:11px;")
 
-        self.donate = QPushButton(tr("♥ PayPal 로 후원하기"))
+        self.donate = QPushButton(tr("♥ GitHub 으로 후원하기"))
         self.donate.setObjectName("donateButton")
         self.donate.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.donate.setToolTip(product.donate_url())
@@ -335,7 +351,7 @@ class SettingsDialog(QDialog):
         box.addWidget(buttons)
 
     def _donate(self) -> None:
-        """기본 브라우저에서 PayPal 을 연다. 주소는 `product` 가 짓는다."""
+        """기본 브라우저에서 GitHub Sponsors 를 연다. 주소는 `product` 가 짓는다."""
         url = product.donate_url()
         log.info("후원 창을 연다: %s", url)
         QDesktopServices.openUrl(QUrl(url))
@@ -461,6 +477,17 @@ class MainWindow(QMainWindow):
         bar.addAction(self.act_settings)
         bar.addAction(self.act_about)
 
+        # 도구모음은 창이 좁으면 뒤쪽부터 `»` 안으로 접는다. 하필 그 뒤쪽에 설정과
+        # 정보가 있고, 정보 창이 **앱 안에서 GPL 원문과 개인정보 처리방침에 닿는
+        # 유일한 길**이다. 접히면 없는 것과 같으므로 메뉴 막대로 한 번 더 받친다.
+        # 같은 QAction 을 꽂으므로 규칙이 두 벌이 되지는 않는다 — 글자도 켬/끔도
+        # 두 자리가 저절로 같이 움직인다.
+        menu = self.menuBar()
+        self.menu_program = menu.addMenu(tr("프로그램"))
+        self.menu_program.addAction(self.act_settings)
+        self.menu_help = menu.addMenu(tr("도움말"))
+        self.menu_help.addAction(self.act_about)
+
         # 캔버스
         host = QWidget()
         host.setObjectName("canvasHost")
@@ -581,6 +608,8 @@ class MainWindow(QMainWindow):
         self.act_about.setText(tr("정보"))
         self.act_about.setToolTip(tr("판·라이선스·소스"))
         self.act_settings.setToolTip(tr("언어를 고릅니다"))
+        self.menu_program.setTitle(tr("프로그램"))
+        self.menu_help.setTitle(tr("도움말"))
         self.zoom_label.setText(tr(" 크기 "))
         self.fit_button.setText(tr("모두 보이게"))
         self.note.setText(

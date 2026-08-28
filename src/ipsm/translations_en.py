@@ -240,6 +240,8 @@ TRANSLATIONS: dict[str, str] = {
 
     # ------------------------------------------------------------------- 설정
     "설정": "Settings",
+    "프로그램": "Program",
+    "도움말": "Help",
     "언어를 고릅니다": "Choose the language",
     "언어": "Language",
     "바꾸면 곧바로 화면에 적용되고, 다음에 켤 때도 그대로입니다.":
@@ -269,7 +271,7 @@ TRANSLATIONS: dict[str, str] = {
         "Writing is blocked for safety. Check the records under logs/.",
     "이 앱은 무료이고 소스가 공개되어 있습니다. 마음이 내키면 개발을 응원해 주세요.":
         "This app is free and open source. If you feel like it, you can support the work.",
-    "♥ PayPal 로 후원하기": "♥ Donate via PayPal",
+    "♥ GitHub 으로 후원하기": "♥ Sponsor on GitHub",
     "파일: {name}": "File: {name}",
     "페이지 {n}장을 한 화면에 폈습니다.": "Laid out all {n} pages on one screen.",
     "페이지 {n}장은 이 창 크기에 다 들어가지 않습니다. 창을 키우면 더 보입니다.":

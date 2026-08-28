@@ -8,14 +8,12 @@ Apple 상표 지침은 자기 제품 **이름 안에** Apple 상표(`iOS`·`iPho
 따로 두고, 스토어의 이름 칸에는 `NAME` 만 넣는다. 둘을 붙여 쓰는 곳은 창 제목이나
 정보 창처럼 스토어 밖의 자리뿐이다.
 
-후원 주소도 여기 있다. 창에서 주소를 짓지 않는 이유는 같다 — 계정이 바뀌었을 때
+후원 주소도 여기 있다. 창에서 주소를 짓지 않는 이유는 같다 — 창구가 바뀌었을 때
 고칠 자리가 하나여야 하고, 주소가 제대로 만들어지는지는 창을 띄우지 않고도 시험할
 수 있어야 한다.
 """
 
 from __future__ import annotations
-
-from urllib.parse import urlencode
 
 #: 스토어의 "앱 이름" 칸에 그대로 들어간다. Apple 상표를 넣지 않는다.
 NAME = "HomeSpread"
@@ -35,34 +33,26 @@ COPYRIGHT = f"Copyright (C) 2026 {NAME} contributors"
 #: 오탐을 줄이는 일이자, 받은 사람이 속성 창에서 이것이 무엇인지 볼 수 있게 하는 일이다.
 PUBLISHER = f"{NAME} contributors"
 
-#: 후원을 받는 PayPal 계정.
-DONATE_ACCOUNT = "forad@ujak.net"
-
-#: 후원 창에 적히는 항목 이름. 무엇에 쓰는 돈인지는 사용자가 결제 화면에서도 봐야 한다.
-DONATE_ITEM = f"{NAME} open source development"
-
-DONATE_CURRENCY = "USD"
+#: 후원을 받는 GitHub 계정. 저장소를 가진 계정과 같은 것이어야 한다.
+DONATE_ACCOUNT = "humanlyj"
 
 
 def donate_url() -> str:
-    """PayPal 후원 주소.
+    """GitHub Sponsors 후원 주소.
 
-    PayPal.Me 손잡이가 아니라 계정 주소로 받으므로 `/donate/` 창구를 쓴다. 값은
-    직접 잇지 않고 `urlencode` 로 만든다 — 계정 주소의 `@` 처럼 그대로 두면
-    주소가 깨지는 글자가 있다.
+    **처음에는 PayPal 이었고, 그것은 열리지 않았다(2026-08-28).** 받는 계정이 한국에
+    등록돼 있으면 PayPal 은 `Donations aren't supported in this organization's country`
+    로 막는다. 비즈니스 계정으로 올려도 풀리지 않고, 한국 계정은 애초에 국내 후원자
+    에게서 받는 경로 자체가 없다. GitHub Sponsors 는 Stripe **Connect Express** 를
+    쓰는데 그쪽은 한국을 받아 준다 — 실제로 계정을 열어 확인했다.
 
-    `no_recurring=1` 은 정기 결제 칸을 접어 둔다. 한 번 응원하려던 사람이 매달
-    빠져나가는 것을 뒤늦게 아는 일이 없어야 한다.
+    주소는 손잡이 하나로 짓는다. 계정을 옮기는 날 고칠 자리가 `DONATE_ACCOUNT` 한
+    줄이어야 하고, `.github/FUNDING.yml` 이 적는 것도 주소가 아니라 이 손잡이다.
+
+    대신 알아 둘 것이 하나 있다 — **후원하려면 GitHub 계정이 필요하다.** 이 앱의
+    사용자는 개발자가 아닐 수 있으므로, 단추에 어디로 가는지를 이름으로 적어 둔다.
     """
-    query = urlencode(
-        {
-            "business": DONATE_ACCOUNT,
-            "item_name": DONATE_ITEM,
-            "currency_code": DONATE_CURRENCY,
-            "no_recurring": "1",
-        }
-    )
-    return f"https://www.paypal.com/donate/?{query}"
+    return f"https://github.com/sponsors/{DONATE_ACCOUNT}"
 
 
 #: 이 프로그램 전체의 라이선스. `pymobiledevice3` 가 GPL 이고 우리는 그것을 함께
