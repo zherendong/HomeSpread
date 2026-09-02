@@ -2438,19 +2438,70 @@ def test_language_choice_survives_a_restart(tmp_path=None):
             i18n.set_language(before)
 
 
-if __name__ == "__main__":
-    failures = 0
-    for name, fn in sorted(globals().items()):
-        if name.startswith("test_") and callable(fn):
-            try:
-                fn()
-                print(f"  PASS  {name}")
-            except Exception as exc:
-                failures += 1
-                print(f"  FAIL  {name}: {exc!r}")
-    print()
-    print("모두 통과" if not failures else f"{failures}개 실패")
-    raise SystemExit(1 if failures else 0)
+
+
+def test_the_store_demo_borrows_nothing_from_anyone():
+    """스토어 그림에 실리는 시연 배치에 남의 것이 하나도 없어야 한다.
+
+    2026-08-29 인증에서 그림이 **10.1.1 Inaccurate Representation** 으로 거절됐다 —
+    "제출된 그림에 Windows 가 아닌 UI 나 기기가 보인다". 그때 배치는 Apple 기본 앱
+    이름으로 짓고 아이콘은 기기 캐시의 진짜 Apple 아이콘을 썼다. 화면의 거의 전부가
+    남의 저작물이었으니 심사자가 iPhone 화면으로 읽은 것이고, 그 아이콘은 우리가
+    만든 것도 허락받은 것도 아니었다(정책 11.2).
+
+    지금은 이름도 식별자도 아이콘도 전부 우리가 짓는다. 이 선이 조용히 무너지면
+    같은 거절이 또 오고, 그때는 이미 그림이 올라간 뒤다. 그래서 시험이 지킨다.
+    """
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import make_demo_layout
+
+    state = make_demo_layout.build()
+    names: list[str] = []
+    idents: list[str] = []
+
+    def walk(items: list) -> None:
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            names.append(item.get("displayName", ""))
+            for key in ("displayIdentifier", "bundleIdentifier"):
+                if item.get(key):
+                    idents.append(item[key])
+            for page in item.get("iconLists") or []:
+                walk(page)
+
+    for page in state:
+        walk(page)
+
+    assert idents, "시연 배치에 앱이 하나도 없다"
+    for ident in idents:
+        assert ident.startswith(make_demo_layout.PREFIX + "."), (
+            f"우리 것이 아닌 식별자가 시연 배치에 있다: {ident}"
+        )
+
+    # 이름은 갈래를 가리키는 일반 낱말이어야 한다. 제품명이 하나라도 섞이면 그림은
+    # 다시 '남의 화면'이 된다.
+    borrowed = (
+        "Safari", "FaceTime", "App Store", "iTunes", "iCloud", "Siri", "AirDrop",
+        "Apple", "iPhone", "iPad", "Mac", "Gmail", "YouTube", "Instagram",
+        "Spotify", "Netflix", "카카오톡", "유튜브",
+    )
+    lowered = {name.lower() for name in names}
+    for word in borrowed:
+        assert word.lower() not in lowered, f"제품명이 시연 배치에 있다: {word}"
+
+    # 영어 목록에 한국어 이름이 박힌 그림을 올리지 않는다.
+    assert make_demo_layout.englishify(state) != state
+
+    shots = (ROOT / "scripts" / "make_screenshots.py").read_text(encoding="utf-8")
+    # 아이콘을 다시 기기 캐시에서 끌어다 쓰면 같은 거절로 돌아간다.
+    assert "make_demo_icons" in shots, "스토어 그림이 기기 아이콘을 쓰고 있다"
+    # 창테두리가 없으면 그림이 Windows 프로그램임을 스스로 말하지 못한다.
+    assert "frameGeometry()" in shots, "창테두리 없이 찍고 있다"
+    # 화면을 잘라 오는 방식은 우리 창이 가려지면 남의 창을 담는다. 실제로 한 번
+    # 그랬다 — 확인 없이 저장하는 자리로 되돌아가면 안 된다.
+    assert "_difference(" in shots, "잘라 온 그림이 우리 창인지 확인하지 않는다"
+
 
 
 def test_the_exe_says_what_it_is():
@@ -2519,3 +2570,20 @@ def test_the_write_failure_message_names_controlled_folder_access():
     assert len(seen) == 4
     for message in seen:
         assert hint in message, "제어된 폴더 액세스를 짚지 않는다:\n" + message
+
+
+
+if __name__ == "__main__":
+    failures = 0
+    for name, fn in sorted(globals().items()):
+        if name.startswith("test_") and callable(fn):
+            try:
+                fn()
+                print(f"  PASS  {name}")
+            except Exception as exc:
+                failures += 1
+                print(f"  FAIL  {name}: {exc!r}")
+    print()
+    print("모두 통과" if not failures else f"{failures}개 실패")
+    raise SystemExit(1 if failures else 0)
+

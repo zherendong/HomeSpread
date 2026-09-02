@@ -176,6 +176,13 @@ https://github.com/humanlyj/HomeSpread 에서 받을 수 있습니다.
 iPhone 14 / iOS 26.1 에서 읽기 · 편집 · 쓰기 · 되돌리기 전 구간을 실기기로
 확인했습니다. 다른 기기와 iOS 판에서도 같은 경로를 쓰지만, 처음 쓸 때는 백업이
 남는지 먼저 확인해 보시기를 권합니다.
+
+■ 상표와 그림에 대하여
+
+HomeSpread 는 Apple Inc. 와 제휴하거나 후원 · 승인받은 제품이 아닙니다. Apple,
+iPhone, iOS, iTunes 는 Apple Inc. 의 상표입니다. 이 목록의 화면 그림은 Windows 에서
+도는 HomeSpread 창을 그대로 찍은 것이고, 그 안에 놓인 배치와 아이콘은 설명을 위해
+지어낸 것입니다 — 실제 앱도, 실제 앱의 아이콘도 아닙니다.
 ```
 
 ### English
@@ -241,6 +248,13 @@ https://github.com/humanlyj/HomeSpread
 Reading, editing, writing, and restoring were all verified end to end on a real device
 (iPhone 14 / iOS 26.1). Other devices and iOS versions use the same path, but on a first
 run we recommend confirming that a backup file is created before you apply.
+
+■ Trademarks and screenshots
+
+HomeSpread is not affiliated with, sponsored by, or endorsed by Apple Inc. Apple, iPhone,
+iOS, and iTunes are trademarks of Apple Inc. Every screenshot in this listing is the
+HomeSpread window running on Windows, captured as it appears. The layout and the icons
+inside it were made up for illustration — they are not real apps and not real app icons.
 ```
 
 ---
@@ -375,25 +389,41 @@ GitHub 저장소, Microsoft Store)를 엽니다.
 |---|---|---|
 | 스토어 로고 | 300x300 이상 | `assets/store-listing-300.png` **있음** |
 | 앱 타일 로고 한 벌 | MSIX 매니페스트가 가리킨다 | `assets/logo/` 14장 **있음** (`scripts/make_logos.py` 가 그린다) |
-| 스크린샷 | 최소 1장, 1366x768 이상 | `_workspace/screenshots/` **8장 있음** (1760x880, 언어별 4장) |
+| 스크린샷 | 최소 1장, 1366x768 이상 | `_workspace/screenshots/` **8장 있음** (1760x911, 언어별 4장 — 창테두리 포함) |
 
 ### 무엇을 찍었는가
 
 핵심 장면은 "여러 페이지가 한 화면에 펼쳐진 모습" 하나다. 그런데 그 장면을 만들려면
-실제 배치와 아이콘 그림이 있어야 하고, 아이콘은 기기에서 받아 온다. 여기서 갈린다:
+실제 배치와 아이콘 그림이 있어야 한다. 두 번 갈렸다.
 
-- **실기기 배치 그대로** — 가장 진짜 같지만 사용자의 앱 목록이 그대로 공개된다
-- **시연용 배치** — Apple 기본 앱만으로 배치를 지어내면 개인적인 것이 하나도 드러나지
-  않으면서 아이콘은 진짜 그림이 쓰인다
+**첫 번째 갈림 — 누구의 배치인가.** 실기기 배치를 그대로 쓰면 가장 진짜 같지만
+사용자의 앱 목록이 통째로 공개된다. 스토어 페이지는 영구히 공개되는 자리이고 내린
+뒤에도 캐시와 색인에 남는다. 홈화면 그림 한 장은 그 사람이 무슨 앱을 쓰는지 —
+은행·병원·회사 — 를 알려준다. 되돌릴 수 없는 공개이므로 기본값은 "보여주지 않는다"
+여야 한다. 그래서 **지어낸 배치**를 택했다.
 
-**시연용 배치를 택했다.** 스토어 페이지는 영구히 공개되는 자리이고, 내린 뒤에도 캐시와
-색인에 남는다. 홈화면 그림 한 장은 그 사람이 무슨 앱을 쓰는지 — 은행·병원·회사 — 를
-통째로 알려준다. 되돌릴 수 없는 공개이므로 기본값은 "보여주지 않는다"여야 한다.
+**두 번째 갈림 — 누구의 아이콘인가(2026-08-31).** 처음에는 배치만 지어내고 아이콘은
+기기 캐시의 진짜 Apple 아이콘을 썼다. 그 그림이 **10.1.1 Inaccurate Representation**
+으로 거절됐다 — "제출된 그림에 Windows 가 아닌 UI 나 기기가 보인다". 화면의 거의
+전부가 Apple 의 아이콘 저작물이었으니 심사자가 iPhone 화면으로 읽은 것은 당연하고,
+게다가 그 아이콘은 우리가 만든 것도 허락받은 것도 아니다(정책 11.2). 그래서 이제
+**아이콘도 우리가 그린다**(`scripts/make_demo_icons.py`) — 색 타일 위의 추상 도형이라
+어느 회사의 것도 아니고, 앱 이름도 제품명이 아닌 일반 낱말이다.
 
-배치는 `scripts/make_demo_layout.py` 가 짓고(항목 raw 는 기기 백업에서 그대로 꺼내
-쓴다 — `iconModDate` 를 손으로 지으면 아이콘을 못 받는다), 그림은
-`scripts/make_screenshots.py` 가 찍는다. 기기 없이도 다시 찍을 수 있다(아이콘 캐시만
-있으면 된다). 이름을 다시 바꾸는 날에도 손으로 찍을 일이 없다.
+**창테두리를 함께 찍는다.** `window.grab()` 은 창의 속만 찍어, 그 그림만으로는 무엇
+위에서 도는 프로그램인지 말해 주지 않는다. 이제 화면에 실제로 떠 있는 창을 Windows 가
+그린 제목 표시줄째로 잘라 온다 — 표시줄에 `HomeSpread v01.00.22` 와 최소화·최대화·닫기
+단추가 그대로 보인다.
+
+**잘라 온 것을 다시 확인한다.** 화면을 잘라 오는 일은 그 자리에 무엇이 있든 가져오므로,
+우리 창이 앞에 서지 못한 첫 시도에서 실제로 **다른 프로그램의 창**(대화·메일·달력)이
+그림에 담겼다. 지금은 창을 맨 위에 세우고, 잘라 온 것의 창 속을 `window.grab()` 이
+그린 것과 견주어 다르면 **저장하지 않고 멈춘다.**
+
+배치는 `scripts/make_demo_layout.py`, 아이콘은 `scripts/make_demo_icons.py`, 그림은
+`scripts/make_screenshots.py` 가 만든다. 마지막 하나를 실행하면 앞의 둘을 스스로
+부르므로 **기기도 백업도 아이콘 캐시도 필요 없다** — 저장소만 받으면 누구나 같은
+그림을 다시 만든다. 이름을 다시 바꾸는 날에도 손으로 찍을 일이 없다.
 
 영어 그림에서는 앱 이름만 영어로 갈아 끼운다. 이름은 기기의 언어를 따라오는데 우리
 기기가 한국어라, 그대로 두면 en-US 목록에 읽히지 않는 그림이 올라간다.
@@ -407,4 +437,5 @@ GitHub 저장소, Microsoft Store)를 엽니다.
 | 3 | `02_folder_*.png` | 폴더를 열어 안까지 편집한다 | Open a folder and edit what is inside |
 | 4 | `04_guide_*.png` | 기기를 붙이기 전 첫 화면 — 준비물을 스스로 보고 알려 준다 | The first screen checks the prerequisites for you |
 
-크기는 모두 1760x880 으로, 스토어 최소치(1366x768)를 넘는다.
+크기는 모두 1760x911 로, 스토어 최소치(1366x768)를 넘는다. 창 속이 1760x880 이고
+Windows 가 그린 제목 표시줄과 테두리가 나머지 31 픽셀이다.
