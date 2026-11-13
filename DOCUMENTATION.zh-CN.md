@@ -18,6 +18,8 @@
 
 ## 需求、设计和验收
 
+Duo 写回研究与当前已安装的只读能力分开记录：[方案与离线结果](research/DUO_EDIT_WRITE_PLAN.zh-CN.md)、[固定版本协议证据](research/DUO_PROTOCOL_EVIDENCE.zh-CN.md)、[独立离线 QA](research/DUO_OFFLINE_QA.zh-CN.md)。研究草稿不授权实际写入。
+
 | 文档 | 内容 |
 |---|---|
 | [协议可行性](_workspace/01_ios-protocol-specialist_feasibility.md) | 读取与写入路径、前提、历史观测和未验证范围。 |

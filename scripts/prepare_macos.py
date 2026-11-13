@@ -44,7 +44,8 @@ def main():
     (OUT / "dependency-inventory.json").write_text(json.dumps(inventory, ensure_ascii=False, indent=2))
     # 使用明确的源码与文档白名单，不把设备布局、缓存、设置、日志或凭据加入分发包。
     source_files = set()
-    for folder in ("src", "tests", "scripts", "assets"):
+    # Research is corresponding-source material only, never an executable import.
+    for folder in ("src", "tests", "scripts", "assets", "research"):
         source_files.update(p for p in (ROOT / folder).rglob("*")
                             if p.is_file() and "__pycache__" not in p.parts)
     for pattern in ("*.md", "*.spec", "*.command", "*.bat", "*.ps1", "requirements*", "LICENSE", ".gitignore"):
