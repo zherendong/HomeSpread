@@ -19,6 +19,7 @@ from typing import Any, Optional
 from PySide6.QtCore import Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QAction, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -44,7 +45,8 @@ from ..i18n import tr
 from ..layout import Grid, LayoutDocument, LayoutError
 from ..version import VERSION_TEXT
 from ..icons import wanted_icons
-from .canvas import DockFrame, FlowLayout, FolderPanel, PageFrame
+from ..write_policy import write_block_reason
+from .canvas import DockFrame, DuoSpreadFrame, FlowLayout, FolderPanel, PageFrame
 from .about import AboutDialog
 from .guide import GuideBoard
 from .tiles import IconCache
@@ -114,6 +116,9 @@ QPushButton {
     border-radius: 5px; padding: 5px 16px; min-width: 74px;
 }
 QPushButton:hover { background: #3a4462; }
+QPushButton#previewModePages:checked, QPushButton#previewModeDuo:checked {
+    background: #3a4d70; border-color: #8faadb; color: #ffffff;
+}
 QPushButton:disabled { color: #5b6377; background: #232838; border-color: #2c3245; }
 QCheckBox { color: #e6e9f0; spacing: 7px; }
 QCheckBox::indicator {
@@ -369,7 +374,7 @@ class SettingsDialog(QDialog):
 class MainWindow(QMainWindow):
     """창 하나 = 기기 하나."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, *, offline: bool = False) -> None:
         super().__init__()
         self.root = Path(root)
         self.doc: Optional[LayoutDocument] = None
@@ -381,9 +386,13 @@ class MainWindow(QMainWindow):
         # 버튼은 살려 두면, 경고를 닫은 사용자에게는 아무 일도 없었던 것과 같다.
         self.writable = False
         self.write_verified = False
+        self.offline = offline
+        self.preview_profile = "pages"
+        self.product_type: str | None = None
         self.installed: dict[str, str] = {}  # 번들 ID -> 이름 (기기에서 받은 설치 목록)
 
         self.worker = DeviceWorker(self.root)
+        self.worker.set_offline_mode(offline)
         self.icons = IconCache(self.worker.icons)
         self.worker.start()
 
@@ -393,6 +402,8 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(STYLE)
 
         self._pages: list[PageFrame] = []
+        self._dock_frames: list[DockFrame] = []
+        self._duo_groups: list[DuoSpreadFrame] = []
         # 고른 항목. 판(ContainerView)이 저마다 들고 있으면 페이지를 건너
         # 여러 개를 고를 수 없다 — 묶기는 페이지를 건너 고르는 일이 흔하다.
         self.selection: set[str] = set()
@@ -414,6 +425,47 @@ class MainWindow(QMainWindow):
         if kind == "connected":
             return tr("연결됨")
         return tr("연결되지 않음")
+
+    @property
+    def readonly_reason(self) -> str | None:
+        if self.doc is None:
+            return None
+        reason = write_block_reason(self.doc.origin, product_type=self.product_type)
+        if reason:
+            return reason
+        if self.preview_profile == "duo":
+            return tr("iPhone Duo preview is read-only. Device writing is not supported.")
+        if self.offline or self._device[0] == "file":
+            return tr("Offline preview: no phone access or layout changes.")
+        return self.doc.readonly_reason
+
+    def set_preview_profile(self, profile: str) -> None:
+        if profile not in ("pages", "duo"):
+            raise ValueError("Unknown preview profile")
+        self.preview_profile = profile
+        self.worker.set_preview_profile(profile)
+        self.write_verified = False
+        button = self.profile_buttons[profile]
+        blocked = button.blockSignals(True)
+        button.setChecked(True)
+        button.blockSignals(blocked)
+        self._rebuild_canvas()
+        self._refresh()
+
+    def open_preview(self, path: Path) -> bool:
+        """Open a local raw backup without starting any device operation."""
+        if self.worker.busy:
+            return False
+        state = self.worker.backups.load(Path(path))
+        self.offline = True
+        self.worker.set_offline_mode(True)
+        self.guide.set_offline(True)
+        self.product_type = None
+        self.write_verified = False
+        self._device = ("file", Path(path).name)
+        self.installed = {}
+        self._set_document(state, None)
+        return True
 
     # ------------------------------------------------------------------ 구성
 
@@ -523,9 +575,42 @@ class MainWindow(QMainWindow):
         column = QVBoxLayout(center)
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(4)
+        self.preview_banner = QLabel()
+        self.preview_banner.setWordWrap(True)
+        self.preview_banner.setTextFormat(Qt.TextFormat.PlainText)
+        self.preview_banner.setStyleSheet("background:#2b2417; color:#f0e2bd; padding:8px; border-radius:6px;")
+        self.preview_banner.hide()
+        column.addWidget(self.preview_banner)
+        # Use ordinary buttons rather than a popup. The native macOS Qt
+        # accessibility hierarchy can crash while enumerating QComboBox popups.
+        self.profile_group = QButtonGroup(self)
+        self.profile_group.setExclusive(True)
+        self.profile_buttons: dict[str, QPushButton] = {}
+        self.profile_label = QLabel(tr("Preview layout"))
+        profile_row = QHBoxLayout()
+        profile_row.setContentsMargins(8, 0, 8, 0)
+        profile_row.addWidget(self.profile_label)
+        for profile, title, name in (
+            ("pages", tr("Individual pages"), "previewModePages"),
+            ("duo", tr("iPhone Duo · two-page preview"), "previewModeDuo"),
+        ):
+            button = QPushButton(title)
+            button.setObjectName(name)
+            button.setCheckable(True)
+            # macOS accessibility activates checkable buttons through their
+            # checked state, without necessarily emitting clicked().
+            button.toggled.connect(lambda checked, selected=profile: self.set_preview_profile(selected) if checked else None)
+            self.profile_group.addButton(button)
+            self.profile_buttons[profile] = button
+            profile_row.addWidget(button)
+        self.profile_buttons["pages"].blockSignals(True)
+        self.profile_buttons["pages"].setChecked(True)
+        self.profile_buttons["pages"].blockSignals(False)
+        profile_row.addStretch(1)
+        column.addLayout(profile_row)
         # 읽기 전에는 안내판이 캔버스 자리를 대신 채운다. 빈 화면으로 맞이하면
         # 무엇이 없어서 안 되는지가 '기기에서 읽기'를 누른 뒤에야 드러난다.
-        self.guide = GuideBoard()
+        self.guide = GuideBoard(offline=self.offline)
         self.guide.readRequested.connect(self._load)
         column.addWidget(self.guide, 1)
         column.addWidget(self.scroll, 1)
@@ -540,6 +625,7 @@ class MainWindow(QMainWindow):
         self.change_head = QLabel(tr("변경 없음"))
         self.change_head.setStyleSheet("font-weight: bold;")
         self.change_list = QListWidget()
+        self.change_list.setWordWrap(True)
         self.note = QLabel(
             tr("아이콘을 끌어 옮기고, 폴더는 두 번 눌러 엽니다.\n"
             "폴더 한가운데에 놓으면 폴더 안으로, 옆에 놓으면 그 자리에 끼웁니다.")
@@ -623,6 +709,9 @@ class MainWindow(QMainWindow):
         self.menu_help.setTitle(tr("도움말"))
         self.zoom_label.setText(tr(" 크기 "))
         self.fit_button.setText(tr("모두 보이게"))
+        self.profile_buttons["pages"].setText(tr("Individual pages"))
+        self.profile_buttons["duo"].setText(tr("iPhone Duo · two-page preview"))
+        self.profile_label.setText(tr("Preview layout"))
         self.note.setText(
             tr("아이콘을 끌어 옮기고, 폴더는 두 번 눌러 엽니다.\n"
             "폴더 한가운데에 놓으면 폴더 안으로, 옆에 놓으면 그 자리에 끼웁니다.")
@@ -680,10 +769,16 @@ class MainWindow(QMainWindow):
         wanted = wanted_icons(self.doc)
         if self.worker.icons.missing(wanted):
             self.statusBar().showMessage(
-                self.doc.summary() + tr(" · 아이콘이 없습니다. ‘아이콘 받기’를 눌러 주세요.")
+                self.doc.summary() + " · " + tr("Some icons are not cached. Offline preview shows text placeholders.")
+                if self.offline else self.doc.summary() + tr(" · 아이콘이 없습니다. ‘아이콘 받기’를 눌러 주세요.")
             )
 
     def _rebuild_canvas(self) -> None:
+        # Dock widgets in Duo groups are owned by those groups, not the bottom row.
+        if self.dock_frame is not None and not self._duo_groups:
+            self.dock_row.removeWidget(self.dock_frame)
+            self.dock_frame.deleteLater()
+        self.dock_frame = None
         while self.flow.count():
             item = self.flow.takeAt(0)
             widget = item.widget() if item is not None else None
@@ -691,10 +786,8 @@ class MainWindow(QMainWindow):
                 widget.setParent(None)
                 widget.deleteLater()
         self._pages = []
-        if self.dock_frame is not None:
-            self.dock_row.removeWidget(self.dock_frame)
-            self.dock_frame.deleteLater()
-            self.dock_frame = None
+        self._dock_frames = []
+        self._duo_groups = []
         if self.folder_panel is not None:
             self.folder_holder.removeWidget(self.folder_panel)
             self.folder_panel.deleteLater()
@@ -702,8 +795,24 @@ class MainWindow(QMainWindow):
         if self.doc is None:
             return
 
-        for page in self.doc.pages:
-            frame = PageFrame(self.doc, page.uid, self.icons, self._tile, parent=self._host)
+        readonly = bool(self.readonly_reason)
+        if self.preview_profile == "duo":
+            for start in range(0, len(self.doc.pages), 2):
+                group = DuoSpreadFrame(self.doc, [p.uid for p in self.doc.pages[start:start + 2]],
+                                       self.icons, self._tile, parent=self._host)
+                self.flow.addWidget(group)
+                self._duo_groups.append(group)
+                self._pages.extend(group.pages)
+                self._dock_frames.append(group.dock)
+        else:
+            for page in self.doc.pages:
+                frame = PageFrame(self.doc, page.uid, self.icons, self._tile, parent=self._host, read_only=readonly)
+                self.flow.addWidget(frame)
+                self._pages.append(frame)
+            dock = DockFrame(self.doc, self.icons, self._tile, read_only=readonly)
+            self.dock_row.insertWidget(1, dock)
+            self._dock_frames.append(dock)
+        for frame in self._pages:
             frame.edited.connect(self._schedule_refresh)
             frame.folderRequested.connect(self._open_folder)
             frame.statusChanged.connect(self._on_status)
@@ -712,20 +821,16 @@ class MainWindow(QMainWindow):
             frame.grouped.connect(self._on_grouped)
             frame.pageMoved.connect(self._move_page)
             frame.pageRemoved.connect(self._remove_page)
-            self.flow.addWidget(frame)
             frame.show()
-            self._pages.append(frame)
-
-        self.dock_frame = DockFrame(self.doc, self.icons, self._tile)
-        self.dock_frame.edited.connect(self._schedule_refresh)
-        self.dock_frame.folderRequested.connect(self._open_folder)
-        self.dock_frame.statusChanged.connect(self._on_status)
-        self.dock_frame.selected.connect(self._on_selected)
-        self.dock_frame.toggled.connect(self._on_toggled)
-        self.dock_frame.grouped.connect(self._on_grouped)
-        self.dock_row.insertWidget(1, self.dock_frame)
-
-        self.folder_panel = FolderPanel(self.doc, self.icons, self._tile)
+        self.dock_frame = self._dock_frames[0] if self._dock_frames else None
+        for dock in self._dock_frames:
+            dock.edited.connect(self._schedule_refresh)
+            dock.folderRequested.connect(self._open_folder)
+            dock.statusChanged.connect(self._on_status)
+            dock.selected.connect(self._on_selected)
+            dock.toggled.connect(self._on_toggled)
+            dock.grouped.connect(self._on_grouped)
+        self.folder_panel = FolderPanel(self.doc, self.icons, self._tile, read_only=readonly)
         self.folder_panel.edited.connect(self._schedule_refresh)
         self.folder_panel.statusChanged.connect(self._on_status)
         self.folder_panel.selected.connect(self._on_selected)
@@ -760,8 +865,8 @@ class MainWindow(QMainWindow):
             self._rebuild_canvas()  # 페이지가 늘거나 줄거나 순서가 바뀌었다
         for frame in self._pages:
             frame.refresh()
-        if self.dock_frame is not None:
-            self.dock_frame.refresh()
+        for dock in self._dock_frames:
+            dock.refresh()
         if self.folder_panel is not None:
             self.folder_panel.refresh()
 
@@ -798,21 +903,38 @@ class MainWindow(QMainWindow):
     def _update_actions(self) -> None:
         has = self.doc is not None
         busy = self.worker.busy
+        reason = self.readonly_reason
+        editable = has and not reason and not busy
         dirty = bool(has and self.doc.dirty)
-        self.act_undo.setEnabled(has and self.doc.can_undo and not busy)
-        self.act_redo.setEnabled(has and self.doc.can_redo and not busy)
-        self.act_add_page.setEnabled(has and not busy)
+        self.act_undo.setEnabled(editable and self.doc.can_undo)
+        self.act_redo.setEnabled(editable and self.doc.can_redo)
+        self.act_add_page.setEnabled(editable)
         self.act_group.setEnabled(
-            has and not busy and self.doc.can_group(sorted(self.selection)) is None
+            editable and self.doc.can_group(sorted(self.selection)) is None
         )
-        self.act_rename.setEnabled(has and not busy and self._rename_target() is not None)
+        self.act_rename.setEnabled(editable and self._rename_target() is not None)
         connected = self._device[0] == "device"
-        self.act_apply.setEnabled(dirty and self.writable and self.write_verified and connected and not busy)
-        self.act_compatibility.setEnabled(has and self.writable and connected and not busy and not dirty)
-        self.act_icons.setEnabled(has and connected and not busy)
+        self.act_apply.setEnabled(editable and dirty and self.writable and self.write_verified and connected)
+        self.act_compatibility.setEnabled(editable and self.writable and connected and not dirty)
+        self.act_icons.setEnabled(has and connected and not self.offline and not busy)
         self.act_load.setEnabled(not busy)
         self.act_open.setEnabled(not busy)
-        self.act_restore.setEnabled(connected and not busy)
+        self.act_restore.setEnabled(connected and not busy and not reason)
+        for button in self.profile_buttons.values():
+            button.setEnabled(not busy)
+        self.preview_banner.setVisible(bool(reason))
+        self.preview_banner.setText(
+            tr("Read-only preview — {reason}\nWidget cards show size and stack membership, not live content.").format(reason=reason)
+            if reason else ""
+        )
+        if reason:
+            self.note.setText(tr("Double-click folders to inspect them. Dragging, edits, compatibility tests, and restoration are disabled."))
+            self.change_head.setText(tr("Read-only preview"))
+            self.change_list.clear()
+            self.change_list.addItem(self.doc.summary())
+        else:
+            self.note.setText(tr("아이콘을 끌어 옮기고, 폴더는 두 번 눌러 엽니다.\n"
+                                "폴더 한가운데에 놓으면 폴더 안으로, 옆에 놓으면 그 자리에 끼웁니다."))
         mark = " •" if dirty else ""
         self.setWindowTitle(
             f"{product.NAME} {VERSION_TEXT} — {self.device_summary}{mark}"
@@ -825,8 +947,10 @@ class MainWindow(QMainWindow):
         self.icons.clear_scaled()
         for frame in self._pages:
             frame.set_tile(value)
-        if self.dock_frame is not None:
-            self.dock_frame.set_tile(value)
+        for dock in self._dock_frames:
+            dock.set_tile(value)
+        for group in self._duo_groups:
+            group.set_tile(value)
         if self.folder_panel is not None:
             self.folder_panel.set_tile(value)
         self.flow.invalidate()
@@ -844,8 +968,14 @@ class MainWindow(QMainWindow):
             pad = max(6, tile // 8) * 2
             page_w = grid.columns * cell_w + pad + 10
             page_h = grid.rows * cell_h + pad + 28
+            if self.preview_profile == "duo":
+                page_w = page_w * 2 + cell_w + pad + 42
+                page_h += 16
+                visible_count = (count + 1) // 2
+            else:
+                visible_count = count
             per_row = max(1, (viewport.width() - 20) // (page_w + 14))
-            rows = (count + per_row - 1) // per_row
+            rows = (visible_count + per_row - 1) // per_row
             if rows * (page_h + 14) <= viewport.height() - 20:
                 self.zoom.setValue(tile)
                 self.statusBar().showMessage(
@@ -861,7 +991,7 @@ class MainWindow(QMainWindow):
         )
 
     def _undo(self) -> None:
-        if self.doc is None:
+        if self.doc is None or self.readonly_reason:
             return
         try:
             self.doc.undo()
@@ -870,7 +1000,7 @@ class MainWindow(QMainWindow):
         self._refresh()
 
     def _redo(self) -> None:
-        if self.doc is None:
+        if self.doc is None or self.readonly_reason:
             return
         try:
             self.doc.redo()
@@ -879,7 +1009,7 @@ class MainWindow(QMainWindow):
         self._refresh()
 
     def _add_page(self) -> None:
-        if self.doc is None:
+        if self.doc is None or self.readonly_reason:
             return
         try:
             self.doc.add_page()
@@ -889,7 +1019,7 @@ class MainWindow(QMainWindow):
         self._refresh()
 
     def _move_page(self, source: int, target: int) -> None:
-        if self.doc is None:
+        if self.doc is None or self.readonly_reason:
             return
         try:
             self.doc.reorder_pages(source, target)
@@ -899,7 +1029,7 @@ class MainWindow(QMainWindow):
         self._schedule_refresh()
 
     def _remove_page(self, index: int) -> None:
-        if self.doc is None:
+        if self.doc is None or self.readonly_reason:
             return
         try:
             self.doc.remove_page(index)
@@ -944,11 +1074,11 @@ class MainWindow(QMainWindow):
             self.selection &= alive
         for frame in self._pages:
             frame.set_selection(self.selection)
-        if self.dock_frame is not None:
-            self.dock_frame.set_selection(self.selection)
+        for dock in self._dock_frames:
+            dock.set_selection(self.selection)
         if self.folder_panel is not None:
             self.folder_panel.set_selection(self.selection)
-        if len(self.selection) > 1:
+        if len(self.selection) > 1 and not self.readonly_reason:
             self.statusBar().showMessage(
                 _key_hint(tr("{n}개 골랐습니다 — 묶기(Ctrl+G)로 하나로 묶을 수 있습니다.")).format(
                     n=len(self.selection)
@@ -964,7 +1094,7 @@ class MainWindow(QMainWindow):
         self._group()
 
     def _group(self) -> None:
-        if self.doc is None:
+        if self.doc is None or self.readonly_reason:
             return
         chosen = sorted(self.selection)
         reason = self.doc.can_group(chosen)
@@ -1011,7 +1141,7 @@ class MainWindow(QMainWindow):
         self._rename_folder(uid)
 
     def _rename_folder(self, node_uid: str) -> None:
-        if self.doc is None:
+        if self.doc is None or self.readonly_reason:
             return
         try:
             node = self.doc.node(node_uid)
@@ -1041,6 +1171,9 @@ class MainWindow(QMainWindow):
             )
             if answer != QMessageBox.StandardButton.Yes:
                 return
+        self.offline = False
+        self.worker.set_offline_mode(False)
+        self.guide.set_offline(False)
         self.worker.load()
 
     def _open_backup_file(self) -> None:
@@ -1050,21 +1183,18 @@ class MainWindow(QMainWindow):
         if not path:
             return
         try:
-            state = self.worker.backups.load(Path(path))
+            self.open_preview(Path(path))
         except Exception as exc:
             QMessageBox.warning(self, tr("열 수 없습니다"), str(exc))
             return
-        self._device = ("file", Path(path).name)
-        self.installed = {}
-        self._set_document(state, None)
 
     def _fetch_icons(self) -> None:
-        if self.doc is None:
+        if self.doc is None or self.offline or self._device[0] != "device":
             return
         self.worker.fetch_icons(wanted_icons(self.doc))
 
     def _apply(self) -> None:
-        if self.doc is None or not self.write_verified:
+        if self.doc is None or not self.write_verified or self.readonly_reason:
             return
         changes = self.doc.changes()
         if not changes:
@@ -1078,7 +1208,7 @@ class MainWindow(QMainWindow):
         self.worker.apply(self.doc.to_state(), reason="before-edit", expected_state=self.doc.origin)
 
     def _check_compatibility(self) -> None:
-        if self.doc is None or self.doc.dirty or not self.writable or self.worker.busy or self._device[0] != "device":
+        if self.doc is None or self.readonly_reason or self.doc.dirty or not self.writable or self.worker.busy or self._device[0] != "device":
             return
         dialog = ApplyDialog([tr("Write the current layout back unchanged, then read it again to verify compatibility. This is a real write to the iPhone.")], [name for _bid, name in self._unplaced()], self)
         dialog.setWindowTitle(tr("Write compatibility test"))
@@ -1086,7 +1216,7 @@ class MainWindow(QMainWindow):
             self.worker.check_compatibility(self.doc.origin)
 
     def _restore(self) -> None:
-        if self._device[0] != "device" or self.worker.busy:
+        if self.readonly_reason or self._device[0] != "device" or self.worker.busy:
             return
         backups = self.worker.backups.list_backups()
         if not backups:
@@ -1110,11 +1240,14 @@ class MainWindow(QMainWindow):
 
     def _on_loaded(self, state: object, metrics: object, info: object) -> None:
         self.write_verified = False
+        self.product_type = getattr(info, "product_type", None)
+        if self.product_type == "iPhone19,4":
+            self.set_preview_profile("duo")
         if info is not None:
             summary = getattr(info, "summary", None)
             self._device = ("device", summary()) if summary else ("connected", "")
         self._set_document(list(state), dict(metrics) if metrics else None)
-        self.statusBar().showMessage(tr("Read complete. Before editing, run the write compatibility test; it requires confirmation and writes to the iPhone."))
+        self.statusBar().showMessage(self.readonly_reason or tr("Read complete. Before editing, run the write compatibility test; it requires confirmation and writes to the iPhone."))
 
     def _on_icons(self, fetched: int, requested: int) -> None:
         self.icons.invalidate()

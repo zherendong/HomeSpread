@@ -20,6 +20,7 @@ import logging
 import re
 from pathlib import Path
 from typing import Any, Callable, Iterable, Optional
+from .iconstate import ItemKind
 
 log = logging.getLogger("icons")
 
@@ -130,7 +131,7 @@ def wanted_icons(document: Any) -> list[tuple[str, Optional[str]]]:
     seen: set[str] = set()
     for container in document.containers():
         for node in container.items:
-            if node.is_folder or not node.identifier or node.identifier in seen:
+            if node.kind is not ItemKind.APP or not node.identifier or node.identifier in seen:
                 continue
             seen.add(node.identifier)
             stamp = None

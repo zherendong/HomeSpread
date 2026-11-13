@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import hashlib
+import copy
 import logging
 import sys
 from dataclasses import dataclass, field
@@ -27,6 +28,7 @@ from .i18n import defer, tr
 from .logging_setup import current_session, mask, step
 from .paths import data_root
 from .safeio import private_directory
+from .write_policy import write_block_reason
 
 log = logging.getLogger("device")
 
@@ -265,6 +267,7 @@ class DeviceBridge:
         self._lockdown = None
         self.info: Optional[DeviceInfo] = None
         self.device_key: Optional[str] = None
+        self._last_icon_state: Optional[list[Any]] = None
 
     # ------------------------------------------------------------- discovery
 
@@ -362,6 +365,7 @@ class DeviceBridge:
                 current_session().save_artifact(artifact_name, state, fmt="plist")
                 current_session().save_artifact(f"{artifact_name}_readable", state)
             ctx["result"] = f"{len(state)}개 리스트 (독 포함)"
+            self._last_icon_state = copy.deepcopy(state)
             return state
 
     async def set_icon_state(self, state: list[Any]) -> None:
@@ -370,6 +374,11 @@ class DeviceBridge:
         부분 갱신이 아니라 전체 교체다. 보내지 않은 것은 사라진다 — 호출자는 원본에서
         해석하지 못한 요소까지 모두 포함한 상태를 넘겨야 한다 (REQ-017).
         """
+        for candidate in (self._last_icon_state, state):
+            if candidate is not None:
+                blocked = write_block_reason(candidate, product_type=getattr(self.info, "product_type", None))
+                if blocked:
+                    raise DeviceError(blocked, tr("Keep this layout in read-only preview. No device changes were sent."))
         with step(log, "홈화면 레이아웃 적용") as ctx:
             current_session().save_artifact("icon_state_sent", state, fmt="plist")
             try:

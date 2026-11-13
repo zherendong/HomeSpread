@@ -30,6 +30,7 @@ from .i18n import tr
 from .iconstate import IconState, ItemKind, parse_item, value_diff
 from .logging_setup import DASH, step
 from .safeio import atomic_private_write, private_directory
+from .write_policy import write_block_reason
 
 log = logging.getLogger("backup")
 
@@ -233,7 +234,7 @@ def validate_state(state: Any) -> None:
             if not isinstance(page, list) or len(page) > 1024:
                 raise BackupError(tr("The layout has an unsupported structure. No changes were written."))
             for item in page:
-                if isinstance(item, dict) and ("iconLists" in item or item.get("listType") == "folder"):
+                if isinstance(item, dict) and item.get("listType") == "folder":
                     pages(item.get("iconLists"), depth + 1)
     pages(state, 0)
 
@@ -270,13 +271,22 @@ def _bind_bridge(bridge, store: BackupStore) -> None:
 async def guarded_write(bridge, store: BackupStore, new_state: list[Any], reason: str,
                         *, expected_state: Optional[list[Any]] = None) -> Backup:
     """Only publish a layout after identity, freshness and durable backup checks."""
-    _bind_bridge(bridge, store)
     # Snapshot caller-owned data before the first await; UI mutation cannot change it.
     new_state = copy.deepcopy(new_state)
     expected_state = copy.deepcopy(expected_state)
+    product_type = getattr(getattr(bridge, "info", None), "product_type", None)
+    for candidate in (new_state, expected_state):
+        if candidate is not None:
+            blocked = write_block_reason(candidate, product_type=product_type)
+            if blocked:
+                raise BackupError(blocked)
+    _bind_bridge(bridge, store)
     validate_state(new_state)
     current = await bridge.get_icon_state()
     validate_state(current)
+    blocked = write_block_reason(current, product_type=product_type)
+    if blocked:
+        raise BackupError(blocked)
     if expected_state is not None:
         if current != expected_state:
             raise BackupError(tr("The iPhone layout changed after it was read. Read it again before applying edits."))

@@ -24,7 +24,7 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Iterator, Optional, Sequence
 
-from .i18n import tr
+from .i18n import defer, tr
 from .iconstate import (
     KEY_BUNDLE_ID,
     KEY_DISPLAY_ID,
@@ -35,6 +35,9 @@ from .iconstate import (
     LIST_TYPE_FOLDER,
     ItemKind,
     parse_item,
+    widget_label,
+    widget_member_count,
+    widget_span,
 )
 
 # 기기에서 읽은 그리드 수치가 없을 때 쓰는 값. iPhone 14 (iOS 26.1) 실측치다.
@@ -135,7 +138,25 @@ class Node:
         return self.kind is ItemKind.FOLDER
 
     @property
+    def is_widget(self) -> bool:
+        return self.kind is ItemKind.WIDGET
+
+    @property
+    def widget_span(self) -> Optional[tuple[int, int]]:
+        return widget_span(self.raw) if self.is_widget else None
+
+    @property
+    def widget_member_count(self) -> int:
+        return widget_member_count(self.raw) if self.is_widget else 0
+
+    @property
+    def widget_label(self) -> str:
+        return widget_label(self.raw) if self.is_widget else ""
+
+    @property
     def label(self) -> str:
+        if self.is_widget:
+            return self.widget_label
         return self.renamed_to or self.display_name or self.identifier or {
             ItemKind.EMPTY: tr("(빈칸)"),
             ItemKind.UNKNOWN: tr("(알 수 없는 항목)"),
@@ -485,6 +506,16 @@ class LayoutDocument:
         self._undo: list[Command] = []
         self._redo: list[Command] = []
         self._build(origin)
+        kinds = {node.kind for container in self.containers() for node in container.items}
+        self._readonly_key: Optional[str] = None
+        if not origin or not all(isinstance(page, list) for page in origin):
+            self._readonly_key = defer("This layout has an unsupported structure. Preview only; editing is disabled.")
+        elif ItemKind.WIDGET in kinds:
+            self._readonly_key = defer("This layout contains widgets. Preview only; editing is disabled.")
+        elif ItemKind.UNKNOWN in kinds or ItemKind.EMPTY in kinds:
+            self._readonly_key = defer("This layout contains unknown items or empty placeholders. Preview only; editing is disabled.")
+        elif any(len(container.items) > container.capacity for container in self.containers()):
+            self._readonly_key = defer("The layout exceeds the reported grid capacity. Preview only; editing is disabled.")
         # 편집 전의 배치를 그대로 떠 둔다. 변경 목록은 이것과의 대조로만 만들어진다 —
         # 명령 이력을 되짚어 계산하면 취소·재실행이 섞였을 때 어긋난다.
         self._origin_snapshot = self._snapshot()
@@ -503,6 +534,15 @@ class LayoutDocument:
         }
 
     # ------------------------------------------------------------- 만들기
+
+    @property
+    def readonly_reason(self) -> Optional[str]:
+        """An origin-based restriction, unaffected by a caller changing its nodes."""
+        return tr(self._readonly_key) if self._readonly_key else None
+
+    def _ensure_editable(self) -> None:
+        if self.readonly_reason:
+            raise LayoutError(self.readonly_reason)
 
     @classmethod
     def from_state(
@@ -601,6 +641,8 @@ class LayoutDocument:
         UI 는 드래그 도중에 이것을 물어 커서 모양과 안내 문구를 정한다. 규칙을 UI 와
         모델 양쪽에 적으면 반드시 어긋나므로, 판단은 여기 한 곳에만 둔다.
         """
+        if self.readonly_reason:
+            return self.readonly_reason
         node = self.node(node_uid)
         source, _ = self.locate(node_uid)
         destination = self.container(dst_uid)
@@ -882,6 +924,8 @@ class LayoutDocument:
 
     def can_group(self, node_uids: "Sequence[str]") -> Optional[str]:
         """묶을 수 없으면 그 이유를 사용자 언어로. 묶을 수 있으면 None."""
+        if self.readonly_reason:
+            return self.readonly_reason
         unique = list(dict.fromkeys(node_uids))
         if len(unique) < 2:
             return tr("묶으려면 항목을 두 개 이상 골라야 합니다.")
@@ -992,6 +1036,8 @@ class LayoutDocument:
         return folder.uid
 
     def can_rename(self, node_uid: str, name: str) -> Optional[str]:
+        if self.readonly_reason:
+            return self.readonly_reason
         try:
             node = self.node(node_uid)
         except LayoutError as exc:
@@ -1028,6 +1074,7 @@ class LayoutDocument:
         return node.display_name
 
     def reorder_pages(self, from_index: int, to_index: int) -> None:
+        self._ensure_editable()
         if not (0 <= from_index < len(self.pages)) or not (0 <= to_index < len(self.pages)):
             raise LayoutError(tr("페이지 번호가 범위를 벗어났습니다."))
         if from_index == to_index:
@@ -1041,6 +1088,7 @@ class LayoutDocument:
         )
 
     def add_page(self) -> None:
+        self._ensure_editable()
         if len(self.pages) >= self.grid.max_pages:
             raise LayoutError(
                 tr("페이지는 최대 {n}개까지입니다.").format(n=self.grid.max_pages)
@@ -1060,6 +1108,7 @@ class LayoutDocument:
         )
 
     def remove_page(self, index: int) -> None:
+        self._ensure_editable()
         if not (0 <= index < len(self.pages)):
             raise LayoutError(tr("페이지 번호가 범위를 벗어났습니다."))
         if self.pages[index].items:
@@ -1077,6 +1126,7 @@ class LayoutDocument:
     # ------------------------------------------------------------- 취소/재실행
 
     def _run(self, command: Command) -> None:
+        self._ensure_editable()
         command.apply(self)
         self._undo.append(command)
         self._redo.clear()  # 새 편집을 하면 되돌렸던 미래는 사라진다
@@ -1096,6 +1146,7 @@ class LayoutDocument:
         return self._redo[-1].label if self._redo else None
 
     def undo(self) -> None:
+        self._ensure_editable()
         if not self._undo:
             return
         command = self._undo.pop()
@@ -1103,6 +1154,7 @@ class LayoutDocument:
         self._redo.append(command)
 
     def redo(self) -> None:
+        self._ensure_editable()
         if not self._redo:
             return
         command = self._redo.pop()
@@ -1112,6 +1164,9 @@ class LayoutDocument:
     # ------------------------------------------------------------- 내보내기
 
     def to_state(self) -> list[Any]:
+        if self.readonly_reason:
+            # A preview is a view over the original, never a reconstructed payload.
+            return copy.deepcopy(self.origin)
         return [[node.to_raw() for node in self.dock.items]] + [
             [node.to_raw() for node in page.items] for page in self.pages
         ]
@@ -1287,6 +1342,8 @@ class LayoutDocument:
         found: set[str] = set()
         for container in self.containers():
             for node in container.items:
+                if node.kind is not ItemKind.APP:
+                    continue
                 if node.identifier:
                     found.add(str(node.identifier))
                 if isinstance(node.raw, dict):
@@ -1311,13 +1368,16 @@ class LayoutDocument:
         return [index for index, page in enumerate(self.pages, start=1) if not page.items]
 
     def summary(self) -> str:
-        apps = folders = unknown = 0
+        apps = folders = unknown = widgets = members = 0
         for container in self.containers():
             for node in container.items:
                 if node.is_folder:
                     folders += 1
                 elif node.kind is ItemKind.APP:
                     apps += 1
+                elif node.is_widget:
+                    widgets += 1
+                    members += node.widget_member_count
                 elif node.kind is ItemKind.UNKNOWN:
                     unknown += 1
         parts = [
@@ -1325,6 +1385,10 @@ class LayoutDocument:
             tr("앱 {n}개").format(n=apps),
             tr("폴더 {n}개").format(n=folders),
         ]
+        if widgets:
+            parts.append(tr("Widgets: {blocks} positions, {members} including stack members").format(
+                blocks=widgets, members=members
+            ))
         if unknown:
             parts.append(tr("알 수 없는 항목 {n}개").format(n=unknown))
         return " · ".join(parts)

@@ -25,6 +25,7 @@
 | [技术栈决策](_workspace/02_desktop-app-architect_adr-001-stack.md) | Python、Qt、工作线程及依赖边界。 |
 | [布局与同步实现](_workspace/02_layout-sync-engineer_implementation.md) | 原始布局保留、备份和同步实现说明。 |
 | [界面规格](_workspace/02_ui-engineer_screen-spec.md) | 页面、文件夹、拖放、状态和确认交互。 |
+| [小组件与 Duo 验收](_workspace/05_widget-duo-qa.md) | 跨格只读预览、Duo 双页和不可绕过的写入拒绝。 |
 | [macOS 独立验收](_workspace/04_macos-qa_final-report.md) | 自动测试、平台检查和未进行的真机写入验证。 |
 
 ## 接口契约

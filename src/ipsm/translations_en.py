@@ -519,3 +519,43 @@ TRANSLATIONS.update({
     "Run the write compatibility test before applying edits.": "Run the write compatibility test before applying edits.",
     "Write compatibility is unverified or failed. Recovery remains available, but restoration is another full write and may fail.": "Write compatibility is unverified or failed. Recovery remains available, but restoration is another full write and may fail.",
 })
+
+# Widget-aware read-only preview and central write capability policy.
+TRANSLATIONS.update({
+    'Duo preview is read-only. Device writes are disabled.': 'Duo preview is read-only. Device writes are disabled.',
+    'Individual pages': 'Individual pages',
+    'Keep this layout in read-only preview. No device changes were sent.': 'Keep this layout in read-only preview. No device changes were sent.',
+    'Layout placeholder · no live content': 'Layout placeholder · no live content',
+    'No next page': 'No next page',
+    'Offline preview never connects to or writes to an iPhone.': 'Offline preview never connects to or writes to an iPhone.',
+    'Offline preview uses a local backup only. No iPhone connection is made.': 'Offline preview uses a local backup only. No iPhone connection is made.',
+    'Offline preview: no phone access or layout changes.': 'Offline preview: no phone access or layout changes.',
+    'Page {n} · {count} items · {cells}/{capacity} cells': 'Page {n} · {count} items · {cells}/{capacity} cells',
+    'Positions unverified; not placed on the grid: {items}': 'Positions unverified; not placed on the grid: {items}',
+    'Preview layout': 'Preview layout',
+    'This layout contains an unsupported structure. It can be previewed, but device writes are disabled.': 'This layout contains an unsupported structure. It can be previewed, but device writes are disabled.',
+    'This layout contains widgets or widget stacks. Preview is read-only; applying, restoring and write compatibility tests are disabled.': 'This layout contains widgets or widget stacks. Preview is read-only; applying, restoring and write compatibility tests are disabled.',
+    'This preview is read-only; layout changes are disabled.': 'This preview is read-only; layout changes are disabled.',
+    'Unknown size': 'Unknown size',
+    'Widget': 'Widget',
+    'Widget stack ({n})': 'Widget stack ({n})',
+    'Widgets: {blocks} positions, {members} including stack members': 'Widgets: {blocks} positions, {members} including stack members',
+    'iPhone Duo is available for read-only preview. Applying, restoring and write compatibility tests are disabled for this device.': 'iPhone Duo is available for read-only preview. Applying, restoring and write compatibility tests are disabled for this device.',
+    'iPhone Duo preview is read-only. Device writing is not supported.': 'iPhone Duo preview is read-only. Device writing is not supported.',
+    'iPhone Duo · two-page preview': 'iPhone Duo · two-page preview',
+    'item {n}: {name}': 'item {n}: {name}',
+    '{columns} × {rows} cells': '{columns} × {rows} cells',
+})
+
+TRANSLATIONS.update({
+    'Double-click folders to inspect them. Dragging, edits, compatibility tests, and restoration are disabled.': 'Double-click folders to inspect them. Dragging, edits, compatibility tests, and restoration are disabled.',
+    'Read-only preview': 'Read-only preview',
+    'Read-only preview — {reason}\nWidget cards show size and stack membership, not live content.': 'Read-only preview — {reason}\nWidget cards show size and stack membership, not live content.',
+    'The layout exceeds the reported grid capacity. Preview only; editing is disabled.': 'The layout exceeds the reported grid capacity. Preview only; editing is disabled.',
+    'This layout contains unknown items or empty placeholders. Preview only; editing is disabled.': 'This layout contains unknown items or empty placeholders. Preview only; editing is disabled.',
+    'This layout contains widgets. Preview only; editing is disabled.': 'This layout contains widgets. Preview only; editing is disabled.',
+    'This layout has an unsupported structure. Preview only; editing is disabled.': 'This layout has an unsupported structure. Preview only; editing is disabled.',
+    'Cannot open the preview file: {why}': 'Cannot open the preview file: {why}',
+})
+
+TRANSLATIONS['Some icons are not cached. Offline preview shows text placeholders.'] = 'Some icons are not cached. Offline preview shows text placeholders.'

@@ -31,6 +31,7 @@ from ..i18n import tr
 from ..iconstate import compare_after_write
 from ..icons import IconStore
 from ..paths import cache_root
+from ..write_policy import device_write_block_reason, write_block_reason
 
 # 기기 계층은 여기서 들이지 않는다 — `_load_device_layer()` 가 워커 스레드에서 들인다.
 DeviceBridge = None  # type: ignore[assignment]
@@ -94,6 +95,33 @@ class DeviceWorker(QThread):
         self._busy = False
         self._startup_error: str | None = None
         self.write_verified = False
+        self.offline_mode = False
+        self.preview_profile = "pages"
+        self._loaded_state: list[Any] | None = None
+
+    def set_offline_mode(self, offline: bool) -> None:
+        self.offline_mode = bool(offline)
+        self.write_verified = False
+
+    def set_preview_profile(self, profile: str) -> None:
+        if profile not in ("pages", "duo"):
+            raise ValueError("Unknown preview profile")
+        self.preview_profile = profile
+        self.write_verified = False
+
+    def _assert_write_allowed(self, state: list[Any] | None = None) -> None:
+        if self.offline_mode:
+            raise BackupError(tr("Offline preview never connects to or writes to an iPhone."))
+        if self.preview_profile == "duo":
+            raise BackupError(tr("Duo preview is read-only. Device writes are disabled."))
+        model = getattr(getattr(self._bridge, "info", None), "product_type", None)
+        blocked = device_write_block_reason(model)
+        for candidate in (self._loaded_state, state):
+            if candidate is not None:
+                blocked = blocked or write_block_reason(candidate, product_type=model)
+        if blocked:
+            self.write_verified = False
+            raise BackupError(blocked)
 
     # --------------------------------------------------------------- 스레드
 
@@ -164,6 +192,8 @@ class DeviceWorker(QThread):
         return True
 
     async def _bridge_ready(self) -> DeviceBridge:
+        if self.offline_mode:
+            raise BackupError(tr("Offline preview never connects to or writes to an iPhone."))
         if self._bridge is None:
             bridge = DeviceBridge()
             await bridge.connect()
@@ -182,11 +212,15 @@ class DeviceWorker(QThread):
             bridge = await self._bridge_ready()
             self.progressed.emit(tr("홈화면을 읽는 중…"), 0, 0)
             state = await bridge.get_icon_state(artifact_name="icon_state_loaded")
+            self._loaded_state = copy.deepcopy(state)
             metrics = await bridge.get_homescreen_icon_metrics()
             self.loaded.emit(state, metrics, bridge.info)
             # 설치 목록은 부가 정보다. 홈화면을 먼저 띄우고 나서 받는다 —
             # 이것 때문에 화면이 늦게 뜨면 순서가 거꾸로다.
-            self.installedListed.emit(await bridge.list_installed_apps())
+            if write_block_reason(state, product_type=getattr(bridge.info, "product_type", None)):
+                self.installedListed.emit({})
+            else:
+                self.installedListed.emit(await bridge.list_installed_apps())
 
         return self._submit(job, tr("홈화면 읽기"))
 
@@ -224,6 +258,7 @@ class DeviceWorker(QThread):
         state, expected_state = copy.deepcopy(state), copy.deepcopy(expected_state)
 
         async def job() -> None:
+            self._assert_write_allowed(state)
             if not self.write_verified:
                 raise BackupError(tr("Run the write compatibility test before applying edits."))
             bridge = await self._bridge_ready()
@@ -245,6 +280,7 @@ class DeviceWorker(QThread):
 
         async def job() -> None:
             self.write_verified = False
+            self._assert_write_allowed(expected)
             bridge = await self._bridge_ready()
             self.progressed.emit(tr("Checking write compatibility… Keep the iPhone connected."), 0, 0)
             backup = await guarded_write(bridge, self.backups, expected, "compatibility", expected_state=expected)
@@ -260,6 +296,7 @@ class DeviceWorker(QThread):
         """백업 시점으로 되돌린다 (REQ-011)."""
 
         async def job() -> None:
+            self._assert_write_allowed()
             bridge = await self._bridge_ready()
             self.progressed.emit(tr("복원하는 중…"), 0, 0)
             expected = self.backups.load(Path(path), for_restore=True)

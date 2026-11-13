@@ -113,15 +113,19 @@ class PageFrame(QFrame):
         icons: IconCache,
         tile: int,
         parent: Optional[QWidget] = None,
+        *,
+        read_only: bool = False,
     ) -> None:
         super().__init__(parent)
         self.doc = document
         self.container_uid = container_uid
+        self.read_only = read_only
         self.setObjectName("pageFrame")
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
         self.title = QLabel()
         self.title.setObjectName("pageTitle")
+        self.title.setWordWrap(True)
 
         self.left = QPushButton("◀")
         self.right = QPushButton("▶")
@@ -141,8 +145,7 @@ class PageFrame(QFrame):
         header = QHBoxLayout()
         header.setContentsMargins(4, 0, 4, 2)
         header.setSpacing(3)
-        header.addWidget(self.title)
-        header.addStretch(1)
+        header.addWidget(self.title, 1)
         header.addWidget(self.left)
         header.addWidget(self.right)
         header.addWidget(self.remove)
@@ -154,6 +157,7 @@ class PageFrame(QFrame):
             document.grid.rows,
             icons,
             tile=tile,
+            read_only=read_only,
         )
         self.view.edited.connect(self.edited)
         self.view.folderRequested.connect(self.folderRequested)
@@ -167,6 +171,12 @@ class PageFrame(QFrame):
         box.setSpacing(0)
         box.addLayout(header)
         box.addWidget(self.view)
+        self.preview_warning = QLabel()
+        self.preview_warning.setWordWrap(True)
+        self.preview_warning.setTextFormat(Qt.TextFormat.PlainText)
+        self.preview_warning.setStyleSheet("color:#efca82; padding:6px;")
+        self.preview_warning.setMaximumWidth(self.view.sizeHint().width())
+        box.addWidget(self.preview_warning)
         self.refresh()
 
     def set_selection(self, uids: set[str]) -> None:
@@ -177,6 +187,8 @@ class PageFrame(QFrame):
         return [page.uid for page in self.doc.pages].index(self.container_uid)
 
     def _move(self, delta: int) -> None:
+        if self.read_only or self.doc.readonly_reason:
+            return
         try:
             index = self._index()
         except ValueError:
@@ -186,6 +198,8 @@ class PageFrame(QFrame):
             self.pageMoved.emit(index, target)
 
     def _remove(self) -> None:
+        if self.read_only or self.doc.readonly_reason:
+            return
         try:
             self.pageRemoved.emit(self._index())
         except ValueError:
@@ -193,6 +207,8 @@ class PageFrame(QFrame):
 
     def set_tile(self, tile: int) -> None:
         self.view.set_tile(tile)
+        self.preview_warning.setMaximumWidth(self.view.sizeHint().width())
+        self.refresh()
         self.updateGeometry()
 
     def refresh(self) -> None:
@@ -203,14 +219,28 @@ class PageFrame(QFrame):
         except (LayoutError, ValueError):
             return
         count = len(container.items)
+        placement = self.view.placement()
         self.title.setText(
-            tr("{n}페이지 · {count}/{capacity}").format(
-                n=index + 1, count=count, capacity=container.capacity
+            tr("Page {n} · {count} items · {cells}/{capacity} cells").format(
+                n=index + 1, count=count, cells=placement.occupied_cells if placement.complete else "?",
+                capacity=self.doc.grid.page_capacity,
             )
         )
-        self.left.setEnabled(index > 0)
-        self.right.setEnabled(index < len(self.doc.pages) - 1)
-        self.remove.setEnabled(count == 0 and len(self.doc.pages) > 1)
+        editable = not self.read_only and not self.doc.readonly_reason
+        self.title.setMaximumWidth(max(70, self.view.sizeHint().width() - (78 if editable else 0)))
+        for button in (self.left, self.right, self.remove):
+            button.setVisible(editable)
+        self.left.setEnabled(editable and index > 0)
+        self.right.setEnabled(editable and index < len(self.doc.pages) - 1)
+        self.remove.setEnabled(editable and count == 0 and len(self.doc.pages) > 1)
+        missing = sorted(set(placement.unsupported_indices) | set(placement.overflow_indices))
+        self.preview_warning.setVisible(bool(missing))
+        self.preview_warning.setText(
+            tr("Positions unverified; not placed on the grid: {items}").format(
+                items=", ".join(tr("item {n}: {name}").format(n=i + 1, name=container.items[i].label) for i in missing)
+            ) if missing else ""
+        )
+        self.view.set_read_only(self.read_only)
         self.view.update()
 
 
@@ -230,16 +260,23 @@ class DockFrame(QFrame):
         icons: IconCache,
         tile: int,
         parent: Optional[QWidget] = None,
+        *,
+        vertical: bool = False,
+        read_only: bool = False,
     ) -> None:
         super().__init__(parent)
         self.doc = document
+        self.vertical = vertical
         self.setObjectName("dockFrame")
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
         self.title = QLabel(tr("독"))
         self.title.setObjectName("pageTitle")
+        self.title.setWordWrap(True)
         self.view = ContainerView(
-            document, "dock", document.grid.dock_capacity, 1, icons, tile=tile
+            document, "dock", 1 if vertical else document.grid.dock_capacity,
+            document.grid.dock_capacity if vertical else 1,
+            icons, tile=tile, read_only=read_only,
         )
         self.view.edited.connect(self.edited)
         self.view.folderRequested.connect(self.folderRequested)
@@ -259,17 +296,50 @@ class DockFrame(QFrame):
         self.view.selected_uids = uids
         self.view.update()
 
+
     def set_tile(self, tile: int) -> None:
         self.view.set_tile(tile)
         self.updateGeometry()
 
     def refresh(self) -> None:
+        self.title.setMaximumWidth(self.view.sizeHint().width())
         self.title.setText(
             tr("독 · {count}/{capacity}").format(
                 count=len(self.doc.dock.items), capacity=self.doc.dock.capacity
             )
         )
         self.view.update()
+
+
+class DuoSpreadFrame(QFrame):
+    """Two original logical pages with a shared right-side Dock; no model changes."""
+
+    def __init__(self, document: LayoutDocument, page_uids: list[str], icons: IconCache,
+                 tile: int, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("duoSpread")
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.pages = [PageFrame(document, uid, icons, tile, read_only=True) for uid in page_uids]
+        self.dock = DockFrame(document, icons, tile, vertical=True, read_only=True)
+        row = QHBoxLayout(self)
+        row.setContentsMargins(8, 8, 8, 8)
+        row.setSpacing(14)
+        for page in self.pages:
+            row.addWidget(page, 0, Qt.AlignmentFlag.AlignTop)
+        if len(self.pages) == 1:
+            self.unpaired_notice = QLabel(tr("No next page"))
+            self.unpaired_notice.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.unpaired_notice.setStyleSheet("color:#8f97ab;")
+            self.unpaired_notice.setFixedWidth(self.pages[0].sizeHint().width())
+            row.addWidget(self.unpaired_notice)
+        else:
+            self.unpaired_notice = None
+        row.addWidget(self.dock, 0, Qt.AlignmentFlag.AlignVCenter)
+
+    def set_tile(self, tile: int) -> None:
+        if self.unpaired_notice is not None:
+            self.unpaired_notice.setFixedWidth(self.pages[0].sizeHint().width())
+        self.updateGeometry()
 
 
 class FolderPanel(QFrame):
@@ -293,11 +363,14 @@ class FolderPanel(QFrame):
         icons: IconCache,
         tile: int,
         parent: Optional[QWidget] = None,
+        *,
+        read_only: bool = False,
     ) -> None:
         super().__init__(parent)
         self.doc = document
         self.icons = icons
         self.tile = tile
+        self.read_only = read_only
         self.node_uid: Optional[str] = None
         self._views: list[ContainerView] = []
         # 판을 다시 지을 때마다 선택이 사라지면, 폴더를 열었다는 이유만으로
@@ -308,6 +381,8 @@ class FolderPanel(QFrame):
         self.title = QLabel()
         self.title.setObjectName("folderTitle")
         rename = QPushButton(tr("이름 바꾸기"))
+        self.rename_button = rename
+        rename.setEnabled(not read_only and not document.readonly_reason)
         rename.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         rename.clicked.connect(self._ask_rename)
         close = QPushButton(tr("닫기"))
@@ -344,7 +419,7 @@ class FolderPanel(QFrame):
             view.update()
 
     def _ask_rename(self) -> None:
-        if self.node_uid is not None:
+        if self.node_uid is not None and not self.read_only and not self.doc.readonly_reason:
             self.renameRequested.emit(self.node_uid)
 
     def rebuild(self) -> None:
@@ -385,6 +460,7 @@ class FolderPanel(QFrame):
                 self.doc.grid.folder_rows,
                 self.icons,
                 tile=self.tile,
+                read_only=self.read_only,
             )
             view.edited.connect(self.edited)
             view.statusChanged.connect(self.statusChanged)

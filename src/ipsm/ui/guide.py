@@ -44,10 +44,11 @@ class GuideBoard(QWidget):
 
     readRequested = Signal()
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, *, offline: bool = False) -> None:
         super().__init__(parent)
         self.setObjectName("canvasHost")
         self._presence = apple_devices.Presence(False, False, "-")
+        self.offline = offline
 
         self.title = QLabel()
         self.title.setObjectName("guideTitle")
@@ -124,6 +125,9 @@ class GuideBoard(QWidget):
 
     def refresh(self) -> None:
         """다시 본다. 방금 설치를 끝냈을 수 있으므로 캐시하지 않는다."""
+        if self.offline:
+            self._paint()
+            return
         before = self._presence
         self._presence = apple_devices.look()
         if (before.running, before.installed) != (self._presence.running, self._presence.installed):
@@ -136,7 +140,12 @@ class GuideBoard(QWidget):
         self._paint()
 
     def _paint(self) -> None:
-        if self._presence.running:
+        if self.offline:
+            self.state.setText(tr("Offline preview uses a local backup only. No iPhone connection is made."))
+            self.box.setProperty("tone", "good")
+            self.action.setVisible(False)
+            self.again.setVisible(False)
+        elif self._presence.running:
             self.state.setText(
                 tr("✓ 준비됐습니다. iPhone 을 케이블로 연결하고 잠금을 풀어 주세요.")
             )
@@ -175,6 +184,8 @@ class GuideBoard(QWidget):
         self.box.style().polish(self.box)
 
     def _act(self) -> None:
+        if self.offline:
+            return
         if self._presence.running:
             self.readRequested.emit()
             return
@@ -215,7 +226,16 @@ class GuideBoard(QWidget):
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)
         self.refresh()
-        self._timer.start()
+        if not self.offline:
+            self._timer.start()
+
+    def set_offline(self, offline: bool) -> None:
+        self.offline = bool(offline)
+        if offline:
+            self._timer.stop()
+        elif self.isVisible():
+            self._timer.start()
+        self.refresh()
 
     def hideEvent(self, event) -> None:  # noqa: N802
         self._timer.stop()

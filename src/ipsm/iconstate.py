@@ -44,8 +44,53 @@ LIST_TYPE_FOLDER = "folder"
 class ItemKind(str, Enum):
     APP = "app"
     FOLDER = "folder"
+    WIDGET = "widget"
     EMPTY = "empty"
     UNKNOWN = "unknown"
+
+
+_WIDGET_SPANS = {"small": (2, 2), "medium": (4, 2), "large": (4, 4)}
+
+
+def is_widget_payload(raw: Any) -> bool:
+    """Recognize explicit widget data before looking at iconLists or bundle IDs.
+
+    Both single widgets and stacks can contain an empty ``iconLists`` field. It
+    describes no folder; its presence must never turn a widget into an editable
+    folder. Unrecognized custom icon types remain UNKNOWN.
+    """
+    if not isinstance(raw, dict):
+        return False
+    if raw.get("elementType") == "widget" or raw.get("widgetIdentifier"):
+        return True
+    elements = raw.get("elements")
+    return bool(isinstance(elements, list) and elements and all(
+        isinstance(element, dict)
+        and (element.get("elementType") == "widget" or element.get("widgetIdentifier"))
+        for element in elements
+    ))
+
+
+def widget_span(raw: Any) -> Optional[tuple[int, int]]:
+    """Known preview dimensions as (columns, rows); never guess unknown sizes."""
+    if not isinstance(raw, dict):
+        return None
+    size = raw.get("gridSize")
+    return _WIDGET_SPANS.get(size) if isinstance(size, str) else None
+
+
+def widget_member_count(raw: Any) -> int:
+    if not is_widget_payload(raw):
+        return 0
+    elements = raw.get("elements")
+    return len(elements) if isinstance(elements, list) and elements else 1
+
+
+def widget_label(raw: Any) -> str:
+    elements = raw.get("elements") if isinstance(raw, dict) else None
+    if isinstance(elements, list) and elements:
+        return tr("Widget stack ({n})").format(n=len(elements))
+    return tr("Widget")
 
 
 @dataclass
@@ -60,6 +105,8 @@ class Item:
 
     @property
     def label(self) -> str:
+        if self.kind is ItemKind.WIDGET:
+            return widget_label(self.raw)
         if self.display_name:
             return self.display_name
         if self.bundle_id:
@@ -97,11 +144,15 @@ def parse_item(raw: Any) -> Item:
         return Item(kind=ItemKind.APP, raw=raw, bundle_id=raw, display_name=raw)
 
     if isinstance(raw, dict):
-        if raw.get(KEY_LIST_TYPE) == LIST_TYPE_FOLDER or KEY_ICON_LISTS in raw:
+        if is_widget_payload(raw):
+            return Item(kind=ItemKind.WIDGET, raw=raw)
+        if raw.get(KEY_LIST_TYPE) == LIST_TYPE_FOLDER:
+            lists = raw.get(KEY_ICON_LISTS)
+            if not isinstance(lists, list) or not all(isinstance(page, list) for page in lists):
+                return Item(kind=ItemKind.UNKNOWN, raw=raw)
             pages = [
                 [parse_item(entry) for entry in page]
-                for page in raw.get(KEY_ICON_LISTS, [])
-                if isinstance(page, list)
+                for page in lists
             ]
             return Item(
                 kind=ItemKind.FOLDER,
@@ -109,6 +160,9 @@ def parse_item(raw: Any) -> Item:
                 display_name=raw.get(KEY_DISPLAY_NAME),
                 children=pages,
             )
+        if (KEY_ICON_LISTS in raw or "iconType" in raw or "elements" in raw
+                or raw.get(KEY_LIST_TYPE)):
+            return Item(kind=ItemKind.UNKNOWN, raw=raw, display_name=raw.get(KEY_DISPLAY_NAME))
         # displayIdentifier 를 먼저 본다. 오프로드된 앱과 웹 클립에는 그것뿐이고,
         # 설치된 앱에서는 두 값이 같다.
         identifier = raw.get(KEY_DISPLAY_ID) or raw.get(KEY_BUNDLE_ID)
@@ -181,6 +235,11 @@ class IconState:
                 apps=tally["app"], folders=tally["folder"], empty=tally["empty"], unknown=tally["unknown"]
             ),
         ]
+        widgets = [item for item in self.iter_items() if item.kind is ItemKind.WIDGET]
+        if widgets:
+            lines.append(tr("Widgets: {blocks} positions, {members} including stack members").format(
+                blocks=len(widgets), members=sum(widget_member_count(item.raw) for item in widgets)
+            ))
         offloaded = sum(1 for i in self.iter_items() if i.kind is ItemKind.APP and not i.installed)
         clips = sum(1 for i in self.iter_items() if i.is_web_clip)
         if offloaded or clips:
@@ -346,10 +405,11 @@ def _position_map(state: list[Any]) -> dict[str, tuple]:
 
     def key_for(raw: Any) -> str:
         if isinstance(raw, dict):
+            kind = parse_item(raw).kind
             identifier = raw.get(KEY_DISPLAY_ID) or raw.get(KEY_BUNDLE_ID)
-            if identifier:
-                return f"app:{identifier}"
-            if KEY_ICON_LISTS in raw:
+            if identifier and kind in (ItemKind.APP, ItemKind.WIDGET):
+                return f"{kind.value}:{identifier}"
+            if kind is ItemKind.FOLDER:
                 return f"folder:{raw.get(KEY_DISPLAY_NAME)}"
         # A display-length truncation can hide changes beyond the first 120 chars.
         # Hash the full payload; the UI receives a short stable identifier.
@@ -363,7 +423,7 @@ def _position_map(state: list[Any]) -> dict[str, tuple]:
             if seen[key] > 1:
                 key = f"{key}#{seen[key]}"
             positions[key] = prefix + (index,)
-            if isinstance(raw, dict):
+            if isinstance(raw, dict) and parse_item(raw).kind is ItemKind.FOLDER:
                 for page_index, page in enumerate(raw.get(KEY_ICON_LISTS) or []):
                     if isinstance(page, list):
                         walk(page, prefix + (index, page_index))
@@ -401,7 +461,7 @@ def compare_after_write(before: list[Any], after: list[Any]) -> WriteComparison:
         raw = state[position[0]][position[1]]
         for offset in range(2, len(position), 2):
             raw = raw[KEY_ICON_LISTS][position[offset]][position[offset + 1]]
-        if isinstance(raw, dict) and KEY_ICON_LISTS in raw:
+        if isinstance(raw, dict) and parse_item(raw).kind is ItemKind.FOLDER:
             # Children are compared independently; folder metadata still matters.
             return {key: value for key, value in raw.items() if key != KEY_ICON_LISTS}
         return raw

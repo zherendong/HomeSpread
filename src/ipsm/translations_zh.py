@@ -367,3 +367,43 @@ TRANSLATIONS.update({
     "Run the write compatibility test before applying edits.": "应用修改前，请先运行“原样写回校验”。",
     "Write compatibility is unverified or failed. Recovery remains available, but restoration is another full write and may fail.": "写入兼容性尚未验证或校验失败。仍可尝试从备份恢复，但恢复也会覆盖整份布局，并且可能失败。",
 })
+
+# Widget-aware read-only preview and central write capability policy.
+TRANSLATIONS.update({
+    'Duo preview is read-only. Device writes are disabled.': 'Duo 预览为只读模式，已禁用所有手机写入。',
+    'Individual pages': '逐页预览',
+    'Keep this layout in read-only preview. No device changes were sent.': '请保持只读预览。未向设备发送任何修改。',
+    'Layout placeholder · no live content': '布局占位示意 · 不显示实时内容',
+    'No next page': '没有下一页',
+    'Offline preview never connects to or writes to an iPhone.': '离线预览不会连接或写入 iPhone。',
+    'Offline preview uses a local backup only. No iPhone connection is made.': '离线预览只使用本地备份，不连接 iPhone。',
+    'Offline preview: no phone access or layout changes.': '离线预览：不访问手机，不修改布局。',
+    'Page {n} · {count} items · {cells}/{capacity} cells': '第 {n} 页 · {count} 个项目 · 占 {cells}/{capacity} 格',
+    'Positions unverified; not placed on the grid: {items}': '位置未确认，未放入网格：{items}',
+    'Preview layout': '预览布局',
+    'This layout contains an unsupported structure. It can be previewed, but device writes are disabled.': '此布局包含尚未支持的结构，仅供预览，已禁用手机写入。',
+    'This layout contains widgets or widget stacks. Preview is read-only; applying, restoring and write compatibility tests are disabled.': '此布局含小组件或堆叠，仅供只读预览；已禁用应用修改、恢复和原样写回校验。',
+    'This preview is read-only; layout changes are disabled.': '当前预览为只读模式，不能修改布局。',
+    'Unknown size': '尺寸未识别',
+    'Widget': '小组件',
+    'Widget stack ({n})': '小组件堆叠（{n} 个）',
+    'Widgets: {blocks} positions, {members} including stack members': '小组件：{blocks} 个位置，含堆叠成员共 {members} 个',
+    'iPhone Duo is available for read-only preview. Applying, restoring and write compatibility tests are disabled for this device.': 'iPhone Duo 仅支持只读预览，已禁用此设备的应用修改、恢复和原样写回校验。',
+    'iPhone Duo preview is read-only. Device writing is not supported.': 'iPhone Duo 预览为只读模式，尚不支持写入手机。',
+    'iPhone Duo · two-page preview': 'iPhone Duo · 双页预览',
+    'item {n}: {name}': '第 {n} 项：{name}',
+    '{columns} × {rows} cells': '占 {columns} × {rows} 格',
+})
+
+TRANSLATIONS.update({
+    'Double-click folders to inspect them. Dragging, edits, compatibility tests, and restoration are disabled.': '双击文件夹可查看内容。已禁用拖放、编辑、原样写回校验和恢复。',
+    'Read-only preview': '只读预览',
+    'Read-only preview — {reason}\nWidget cards show size and stack membership, not live content.': '只读预览 — {reason}\n小组件卡片只表示尺寸和堆叠成员，不显示实时内容。',
+    'The layout exceeds the reported grid capacity. Preview only; editing is disabled.': '布局超出网格容量，仅供预览，已禁用编辑。',
+    'This layout contains unknown items or empty placeholders. Preview only; editing is disabled.': '布局包含未知项目或空占位，仅供预览，已禁用编辑。',
+    'This layout contains widgets. Preview only; editing is disabled.': '布局包含小组件，仅供预览，已禁用编辑。',
+    'This layout has an unsupported structure. Preview only; editing is disabled.': '布局结构尚未支持，仅供预览，已禁用编辑。',
+    'Cannot open the preview file: {why}': '无法打开预览文件：{why}',
+})
+
+TRANSLATIONS['Some icons are not cached. Offline preview shows text placeholders.'] = '部分图标没有本地缓存，离线预览使用文字占位。'

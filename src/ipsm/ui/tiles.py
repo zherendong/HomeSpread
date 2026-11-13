@@ -30,6 +30,7 @@ from PySide6.QtWidgets import QWidget
 
 from ..i18n import tr
 from ..layout import Container, LayoutDocument, LayoutError, Node
+from ..placement import place_items
 
 log = logging.getLogger("ui.tiles")
 
@@ -112,6 +113,8 @@ class ContainerView(QWidget):
         icons: IconCache,
         tile: int = 64,
         parent: Optional[QWidget] = None,
+        *,
+        read_only: bool = False,
     ) -> None:
         super().__init__(parent)
         self.doc = document
@@ -121,6 +124,7 @@ class ContainerView(QWidget):
         self.icons = icons
         self.tile = tile
         self.selected_uids: set[str] = set()
+        self.read_only = read_only
 
         self._press_pos: Optional[QPoint] = None
         self._press_index: Optional[int] = None
@@ -130,7 +134,7 @@ class ContainerView(QWidget):
         self._drop_group: Optional[str] = None  # 놓으면 새 묶음이 되는 상대 노드 uid
         self._drop_bad = False
 
-        self.setAcceptDrops(True)
+        self.setAcceptDrops(self.editing_enabled)
         self.setMouseTracking(True)
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, False)
 
@@ -142,6 +146,20 @@ class ContainerView(QWidget):
             return self.doc.container(self.container_uid)
         except LayoutError:
             return None  # 페이지가 지워진 직후 다시 그려질 수 있다
+
+    @property
+    def editing_enabled(self) -> bool:
+        return not self.read_only and not self.doc.readonly_reason
+
+    def placement(self):
+        container = self.container
+        return place_items(container.items if container else [], self.columns, self.rows)
+
+    def set_read_only(self, value: bool) -> None:
+        self.read_only = value
+        self.setAcceptDrops(self.editing_enabled)
+        self._press_pos = None
+        self._clear_drop()
 
     @property
     def _pad(self) -> int:
@@ -174,6 +192,14 @@ class ContainerView(QWidget):
         self.update()
 
     def _cell_rect(self, index: int) -> QRect:
+        placed = next((p for p in self.placement().cells if p.index == index), None)
+        if placed is not None:
+            return QRect(self._pad + placed.column * self._cell_w,
+                         self._pad + placed.row * self._cell_h,
+                         placed.width * self._cell_w, placed.height * self._cell_h)
+        return self._grid_cell_rect(index)
+
+    def _grid_cell_rect(self, index: int) -> QRect:
         row, col = divmod(index, self.columns)
         return QRect(
             self._pad + col * self._cell_w,
@@ -200,11 +226,10 @@ class ContainerView(QWidget):
 
     def _item_at(self, pos: QPoint) -> Optional[int]:
         """항목이 실제로 있는 칸만 돌려준다."""
-        index = self._index_at(pos)
-        container = self.container
-        if index is None or container is None or index >= len(container.items):
-            return None
-        return index
+        for placed in self.placement().cells:
+            if self._cell_rect(placed.index).contains(pos):
+                return placed.index
+        return None
 
     # ------------------------------------------------------------- 그리기
 
@@ -224,16 +249,21 @@ class ContainerView(QWidget):
         # 빈 칸의 윤곽. 어디에 놓을 수 있는지를 말없이 알려 준다.
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.setPen(QPen(SLOT_LINE, 1, Qt.PenStyle.DashLine))
+        placement = self.placement()
+        occupied = {(p.row + y, p.column + x) for p in placement.cells
+                    for y in range(p.height) for x in range(p.width)}
         for index in range(self.columns * self.rows):
-            if index < len(container.items):
+            if not placement.complete:
+                break  # Blank regions are not known-free slots after unresolved geometry.
+            if divmod(index, self.columns) in occupied:
                 continue
-            rect = self._icon_rect(index)
+            cell = self._grid_cell_rect(index)
+            rect = QRect(cell.x() + (cell.width() - self.tile) // 2,
+                         cell.y(), self.tile, self.tile)
             painter.drawRoundedRect(QRectF(rect), self.tile / 4.8, self.tile / 4.8)
 
-        for index, node in enumerate(container.items):
-            if index >= self.columns * self.rows:
-                break  # 용량을 넘는 일은 없어야 하지만, 넘어도 그리다 죽지는 않는다
-            self._paint_node(painter, index, node)
+        for placed in placement.cells:
+            self._paint_node(painter, placed.index, container.items[placed.index])
 
         if self._drop_folder is not None:
             rect = self._icon_rect(self._drop_folder).adjusted(-3, -3, 3, 3)
@@ -257,6 +287,9 @@ class ContainerView(QWidget):
         painter.drawLine(x, y + 2, x, y + self._cell_h - 4)
 
     def _paint_node(self, painter: QPainter, index: int, node: Node) -> None:
+        if node.is_widget:
+            self._paint_widget(painter, index, node)
+            return
         rect = self._icon_rect(index)
         self.paint_icon(painter, rect, node, self.icons)
 
@@ -277,6 +310,35 @@ class ContainerView(QWidget):
             int(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop),
             text,
         )
+
+    def _paint_widget(self, painter: QPainter, index: int, node: Node) -> None:
+        """Show shape and stack membership without inventing live widget content."""
+        cell = self._cell_rect(index)
+        gap = max(8, self.tile // 4)
+        rect = cell.adjusted(gap // 2, 0, -gap // 2, -self._label_h - 5)
+        painter.setPen(QPen(QColor("#526886"), 1))
+        painter.setBrush(QColor("#26384b"))
+        painter.drawRoundedRect(QRectF(rect), max(8, self.tile // 4), max(8, self.tile // 4))
+        font = QFont(self.font())
+        font.setPointSizeF(max(7.0, self.tile * 0.17))
+        font.setBold(True)
+        painter.setFont(font)
+        painter.setPen(LABEL_FG)
+        title = QFontMetrics(font).elidedText(node.widget_label, Qt.TextElideMode.ElideRight, rect.width() - 14)
+        painter.drawText(rect.adjusted(7, 5, -7, -rect.height() // 2),
+                         int(Qt.AlignmentFlag.AlignCenter), title)
+        font.setBold(False)
+        font.setPointSizeF(max(6.0, self.tile * 0.13))
+        painter.setFont(font)
+        painter.setPen(QColor("#b2c7de"))
+        body = tr("Layout placeholder · no live content")
+        painter.drawText(rect.adjusted(8, rect.height() // 2, -8, -4),
+                         int(Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap), body)
+        painter.setPen(LABEL_DIM)
+        span = node.widget_span
+        label = tr("{columns} × {rows} cells").format(columns=span[0], rows=span[1]) if span else tr("Unknown size")
+        painter.drawText(QRect(cell.x(), rect.bottom() + 2, cell.width(), self._label_h),
+                         int(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop), label)
 
     @staticmethod
     def paint_icon(painter: QPainter, rect: QRect, node: Node, icons: IconCache) -> None:
@@ -370,7 +432,7 @@ class ContainerView(QWidget):
                     )
                 )
 
-        if self._press_pos is None or self._press_index is None:
+        if not self.editing_enabled or self._press_pos is None or self._press_index is None:
             return
         if not (event.buttons() & Qt.MouseButton.LeftButton):
             return
@@ -420,6 +482,8 @@ class ContainerView(QWidget):
         돌려주는 것: (대상 자리 uid, 끼울 위치, 테두리를 칠할 칸,
                       놓으면 묶일 상대 uid, 막힌 이유)
         """
+        if not self.editing_enabled:
+            return None, 0, None, None, tr("This preview is read-only; layout changes are disabled.")
         container = self.container
         if container is None:
             return None, 0, None, None, tr("자리를 찾을 수 없습니다.")
@@ -469,12 +533,15 @@ class ContainerView(QWidget):
         return bytes(data.data(MIME_NODE)).decode("utf-8")
 
     def dragEnterEvent(self, event) -> None:  # noqa: N802
-        if self._node_uid(event) is None:
+        if not self.editing_enabled or self._node_uid(event) is None:
             event.ignore()
             return
         event.acceptProposedAction()
 
     def dragMoveEvent(self, event) -> None:  # noqa: N802
+        if not self.editing_enabled:
+            event.ignore()
+            return
         node_uid = self._node_uid(event)
         if node_uid is None:
             event.ignore()
@@ -516,6 +583,9 @@ class ContainerView(QWidget):
         self.update()
 
     def dropEvent(self, event) -> None:  # noqa: N802
+        if not self.editing_enabled:
+            event.ignore()
+            return
         node_uid = self._node_uid(event)
         self._clear_drop()
         if node_uid is None:

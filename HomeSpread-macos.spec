@@ -12,6 +12,7 @@ datas += [(str(resources / name), ".") for name in
           ("THIRD-PARTY-NOTICES.md", "HomeSpread-source.zip", "dependency-inventory.json")]
 datas += [(str(resources / "third_party_licenses"), "third_party_licenses")]
 datas += [(str(root / "_workspace/04_macos-qa_final-report.md"), "_workspace")]
+datas += [(str(root / "_workspace/05_widget-duo-qa.md"), "_workspace")]
 
 a = Analysis(
     [str(root / "src/ipsm/app.py")], pathex=[str(root / "src")],
@@ -31,7 +32,7 @@ coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name="HomeSprea
 app = BUNDLE(coll, name="HomeSpread.app", icon=str(resources / "HomeSpread.icns"),
              bundle_identifier="local.homespread.macos.zh",
              info_plist={"CFBundleName": "HomeSpread", "CFBundleDisplayName": "HomeSpread",
-                         "CFBundleShortVersionString": "1.0.22", "CFBundleVersion": "1.0.22.1",
+                         "CFBundleShortVersionString": "1.0.22", "CFBundleVersion": "1.0.22.2",
                          "CFBundleDevelopmentRegion": "zh_CN",
                          "CFBundleLocalizations": ["zh_CN", "en", "ko"],
                          "LSMinimumSystemVersion": "14.0", "NSHighResolutionCapable": True,

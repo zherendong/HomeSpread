@@ -78,12 +78,17 @@ SAMPLE = [
     [{"displayName": "지도", "bundleIdentifier": "com.apple.Maps"}],
 ]
 
+# Generic edit tests use a supported app/folder layout. Unsupported data remains
+# in SAMPLE for parsing, preservation and explicit read-only-policy regressions.
+EDITABLE_SAMPLE = copy.deepcopy(SAMPLE)
+EDITABLE_SAMPLE[1].pop(2)
+
 
 def test_parse_counts():
     state = IconState.parse(SAMPLE)
     assert len(state.pages) == 2
     assert len(state.dock) == 2
-    assert state.counts() == {"app": 6, "folder": 1, "empty": 0, "unknown": 1}
+    assert state.counts() == {"app": 6, "folder": 1, "widget": 0, "empty": 0, "unknown": 1}
     assert "com.apple.Maps" in state.bundle_ids()
 
 
@@ -268,7 +273,7 @@ def test_backup_file_is_a_valid_plist():
 # ---------------------------------------------------------------- 편집 모델
 
 def _doc(state=None):
-    return LayoutDocument.from_state(copy.deepcopy(state if state is not None else SAMPLE))
+    return LayoutDocument.from_state(copy.deepcopy(state if state is not None else EDITABLE_SAMPLE))
 
 
 def test_document_shape_matches_sample():
@@ -314,10 +319,12 @@ def test_redo_returns_to_the_edited_state():
 
 def test_unknown_item_cannot_be_moved():
     """위젯처럼 해석하지 못한 항목은 붙잡을 수 없어야 한다."""
-    doc = _doc()
+    doc = _doc(SAMPLE)
     widget = doc.pages[0].items[2]
     assert not widget.movable
     assert doc.can_move(widget.uid, doc.pages[1].uid) is not None
+    assert doc.can_move(doc.dock.items[0].uid, doc.pages[1].uid) is not None
+    assert doc.to_state() == SAMPLE
 
 
 def test_full_container_is_refused_with_a_reason():
@@ -425,16 +432,19 @@ def test_grouping_redo_returns_to_the_same_result():
 def test_grouping_refuses_what_ios_cannot_hold():
     doc = _doc()
     folder = doc.pages[0].items[1]
-    widget = doc.pages[0].items[2]
     maps = doc.pages[1].items[0]
     inner = folder.pages[0].items[0]
 
     assert "두 개 이상" in (doc.can_group([maps.uid]) or "")
     assert "이미 묶음" in (doc.can_group([folder.uid, maps.uid]) or "")
-    assert "해석하지 못한" in (doc.can_group([widget.uid, maps.uid]) or "")
     assert "묶음 안에 있습니다" in (doc.can_group([inner.uid, maps.uid]) or "")
     # 거절된 요청은 문서를 건드리지 않는다
     assert doc.to_state() == doc.origin
+    unsupported = _doc(SAMPLE)
+    widget = unsupported.pages[0].items[2]
+    maps = unsupported.pages[1].items[0]
+    assert unsupported.can_group([widget.uid, maps.uid]) is not None
+    assert unsupported.to_state() == SAMPLE
 
 
 def test_grouping_respects_the_folder_capacity():
@@ -537,7 +547,7 @@ def test_folder_opens_a_new_page_when_the_current_one_is_full():
 
 def test_folder_fills_an_existing_gap_before_opening_a_new_page():
     """빈자리가 이미 있으면 페이지를 새로 펴지 않는다."""
-    two_pages = copy.deepcopy(SAMPLE)
+    two_pages = copy.deepcopy(EDITABLE_SAMPLE)
     two_pages[1][1]["iconLists"].append(
         [{"displayName": "시계", "bundleIdentifier": "com.apple.clock"}]
     )
@@ -954,7 +964,7 @@ def test_version_is_one_point_zero_and_shows_in_the_title():
 
     assert (version.VERSION_MAJOR, version.VERSION_MINOR) == (1, 0)
     assert 0 <= version.VERSION_PATCH <= 99
-    assert version.VERSION_TEXT == f"v01.00.{version.VERSION_PATCH:02d}-mac.zh.1"
+    assert version.VERSION_TEXT == f"v01.00.{version.VERSION_PATCH:02d}-mac.zh.2"
 
     source = (Path(__file__).resolve().parents[1] / "src/ipsm/ui/main_window.py").read_text(
         encoding="utf-8"
@@ -1080,7 +1090,7 @@ def test_the_settings_offers_support_without_going_anywhere_by_itself():
 # ---------------------------------------------------------------- 아이콘
 
 def test_wanted_icons_skips_folders_and_unknowns():
-    doc = _doc()
+    doc = _doc(SAMPLE)
     wanted = wanted_icons(doc)
     identifiers = [identifier for identifier, _stamp in wanted]
     assert "com.apple.calculator" in identifiers   # 폴더 안의 앱은 필요하다
@@ -1182,10 +1192,15 @@ def test_drop_moves_the_item_and_refusal_leaves_it_alone():
         assert doc.locate(movable.uid)[0].uid == doc.pages[1].uid
         assert doc.dirty
 
-        widget = doc.pages[0].items[-1]              # 우리가 모르는 항목
-        before = doc.to_state()
+        # Unsupported layouts now reject the entire edit, including neighbor
+        # moves. Keep this assertion on the original unknown-bearing fixture.
+        unsupported = _doc(SAMPLE)
+        target = ContainerView(unsupported, unsupported.pages[1].uid, 4, 6, icons, tile=40)
+        target.resize(4 * 60, 6 * 60)
+        widget = unsupported.pages[0].items[-1]
+        before = unsupported.to_state()
         assert not drop(target, widget.uid, target._cell_rect(2).center())
-        assert doc.to_state() == before, "거절된 드롭이 문서를 바꿨다"
+        assert unsupported.to_state() == before, "거절된 드롭이 문서를 바꿨다"
 
 
 def test_dropping_an_app_on_an_app_asks_to_group_instead_of_moving():
