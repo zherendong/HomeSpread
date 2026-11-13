@@ -105,6 +105,7 @@ a = Analysis(
     datas=pmd_datas
     + [
         ("LICENSE", "."),
+        ("LICENSE.zh-CN.md", "."),
         ("THIRD-PARTY-NOTICES.md", "."),
         ("PRIVACY.md", "."),
         ("third_party_licenses", "third_party_licenses"),

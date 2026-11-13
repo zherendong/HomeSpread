@@ -1,13 +1,15 @@
-# pymobiledevice3 는 Windows에서 그대로 설치하면 실패한다.
-# lzfse 확장이 Microsoft Visual C++ 빌드 도구를 요구하는데, 이 프로젝트가 쓰는
-# SpringBoard 서비스에는 lzfse 가 전혀 필요 없다 (펌웨어 이미지 압축 해제용).
+# 上游 Windows 依赖安装记录，不是 macOS 锁定环境。
+# 使用 install.ps1 / install.bat。上游当时的 lzfse 本地编译需要 Visual C++ 工具，
+# 而主屏幕操作不使用其固件解压功能，因此脚本分开安装依赖并跳过部分组件。
+# 原脚本允许单项安装失败后继续；本文件不保证所有版本的依赖一致性。
+# macOS 使用 requirements-macos.lock 与 install_macos.command，失败时立即停止。
 #
-# 그래서 설치는 install.ps1 을 쓴다. 이 파일은 무엇이 필요한지의 기록이다.
-#
-#   .\.venv\Scripts\python.exe -m pip install --no-deps pymobiledevice3
-#   그다음 아래 목록을 하나씩 설치 (하나가 실패해도 나머지는 설치되도록)
+# 界面选择 PySide6-Essentials，避免下载未使用的 WebEngine、3D、Charts 等模块。
+# 上游当时跳过的组件：lzfse（C 扩展/固件解压）、ipsw_parser（固件解析）、
+# pyimg4（固件镜像）、sslpsk-pmd3（当时限定 Python 3.12 及以下）、
+# pyiosbackup（iTunes 备份解析）。这些是历史安装选择，不是当前 macOS 依赖清单。
 
-pymobiledevice3>=4.0        # --no-deps 로 설치할 것
+pymobiledevice3>=4.0        # 上游 Windows 安装脚本使用 --no-deps
 construct
 click
 cryptography
@@ -33,15 +35,5 @@ typer-injector
 xonsh
 gpxpy
 pygnuutils
-pywin32                     # Windows 전용: win32security
-
-# 화면 (ADR-001). PySide6 전체 대신 Essentials 를 쓴다 — WebEngine·3D·Charts 는
-# 이 앱에 쓰이지 않는데 내려받기만 1GB 가까이 늘어난다.
+pywin32                     # Windows 专用：win32security
 PySide6-Essentials>=6.7
-
-# 설치하지 않는 것 (이유):
-#   lzfse           C 확장 빌드 필요 · 펌웨어 압축 해제용이라 우리는 쓰지 않는다
-#   ipsw_parser     펌웨어 분석용
-#   pyimg4          펌웨어 이미지용
-#   sslpsk-pmd3     Python 3.13 미지원 (3.12 이하 전용)
-#   pyiosbackup     아이튠즈 백업 파싱용

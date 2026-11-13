@@ -1,441 +1,365 @@
-# Partner Center 제출 문안 — HomeSpread
+# Partner Center 文案——HomeSpread Windows 商店版
 
-**작성:** 2026-08-27 · **대상 패키지:** `HomeSpread_1.0.21.0_x64.msix` · **태그:** `v1.0.21`
-**쓰는 법:** 아래 코드 블록 안의 글자를 **그대로** Partner Center 의 같은 이름 칸에 붙여
-넣는다. 블록 밖의 글은 왜 그렇게 썼는지를 남긴 것이니 붙여 넣지 않는다.
+**原始编写日期：**2026-08-27。**原草稿包：**`HomeSpread_1.0.21.0_x64.msix`。**原标签：**`v1.0.21`。
 
----
+本文完整保存原韩文、英文条目的中文含义及字段结构。上游后来实际提交并发布了 `HomeSpread_1.0.22.0_x64.msix`，录入差异和验证记录见 `05_store-submission-checklist.md`。这里的 Windows 要求、商店身份和历史语言条目不是 macOS 版本的新提交计划。`ko-kr`、`en-us` 保留为历史字段语言标识；文案块已译为中文，不应直接覆盖这两个语言字段。
 
-## 0. 제품 신원 — 이미 정해진 것
+当前本地版本支持中文、英文、韩文，采用 USB-only 连接、同设备备份归属校验和本次会话写入门禁。文中涉及恢复、隐私和兼容性的表述按这些实际边界描述，不承诺完整恢复所有系统状态。
 
-| 칸 | 값 |
+## 0. 上游产品身份
+
+| 字段 | 值 |
 |---|---|
 | Store ID | `9NT54QJ7XQNL` |
 | Package/Identity/Name | `YOUNGJONGLEE.HomeSpread` |
 | Package/Identity/Publisher | `CN=D68EF2DF-56B8-44DF-BCF5-B40E38E8607A` |
 | Package/Properties/PublisherDisplayName | `YOUNGJONG, LEE` |
 | PFN | `YOUNGJONGLEE.HomeSpread_ea89tz3tby8xy` |
-| 제품 유형 | **MSIX 또는 PWA 앱** |
+| 产品类型 | MSIX 或 PWA 应用 |
 
-`packaging/identity.json` 이 이 셋을 그대로 담고 있고, `scripts/make_msix.py` 가 그것을
-매니페스트에 싣는다. 손으로 옮겨 적는 자리가 없으므로 어긋날 자리도 없다.
+上游 `packaging/identity.json` 保存身份字段，`scripts/make_msix.py` 从中生成清单，避免多处手工维护。这些身份属于上游 Windows 商店产品，不能作为其它发布者的身份使用。
 
----
+## 1. 名称与副标题
 
-## 1. 이름과 부제
+名称：
 
-```
+```text
 HomeSpread
 ```
 
-부제(스토어의 이름 칸이 **아닌** 자리에만 쓴다):
+兼容性副标题的中文含义，位于名称之外：
 
+```text
+适用于 iOS 的移动设备布局管理器
 ```
-Mobile layout manager for iOS
-```
 
-> **이름 칸에 `iPhone`·`iOS` 를 넣지 않는다.** Apple 상표 지침은 제품 이름 **안에**
-> Apple 상표를 넣는 것을 금지하고 호환성 표기는 이름 **아래**로만 허용한다. 스토어
-> 심사가 보는 칸이 정확히 이름 칸이다.
+代码中的技术声明仍为 `product.NAME`、`product.TAGLINE`。上游采用名称不包含 `iPhone`、`iOS`、兼容性信息置于副标题的商标使用策略；这不是对未来商店或商标审核结果的保证。
 
-**선점·상표 확인(2026-08-27):**
-- 선점 — Partner Center 가 `HomeSpread` 로 제품을 만들어 주었고 Store ID 를 발급했다.
-  이름은 확보된 것이다 `[확인됨]`
-- 상표 — 웹에서 `HomeSpread` 를 쓰는 등록 상표나 같은 이름의 소프트웨어를 찾지 못했다.
-  USPTO 데이터베이스를 직접 조회한 것은 아니므로 `[확인됨(2차)]` 로 남긴다. 앞서
-  걸렀던 다섯(`PageDeck`·`IconDesk`·`Screenlay`·`Iconlay`·`Screenboard`)과 달리
-  임자가 보이지 않는다
+### 2026-08-27 名称核查记录
 
----
+- **预约：**Partner Center 已创建 `HomeSpread` 产品并分配 Store ID，表明当时名称预约成功。
+- **网页初查：**未找到同名注册商标或软件；未直接核验 USPTO 数据库，因此是有限的二手搜索结果，不是权利结论。此前排除的候选名称为 `PageDeck`、`IconDesk`、`Screenlay`、`Iconlay`、`Screenboard`。
 
-## 2. 범주와 검색어
+## 2. 分类与搜索词
 
-| 칸 | 값 |
+| 字段 | 中文含义 |
 |---|---|
-| 범주 | `유틸리티 및 도구` (Utilities & tools) |
-| 하위 범주 | `백업 및 관리` (Backup & manage) |
+| 分类 | 实用工具 |
+| 子分类 | 备份与管理 |
 
-검색어(최대 7개 · 각 40자 이내 · **모든 검색어의 낱말 합계 21개 이하**). 검색어는
-목록마다 따로 두므로 **언어별로 다르다** — 한국어 낱말은 영어권 검색에 닿지 않고,
-그 자리는 비워 두는 것보다 영어 낱말로 채우는 편이 낫다(2026-08-28).
+原表单规则为最多 7 个搜索词，每项不超过 40 个字符，全部搜索词的单词总数不超过 21。词条按语言分别保存；原 `en-us` 输入合计正好 21 个英文单词。**这一计数基于历史原文，不按以下中文译文计算。**
 
-ko-kr 목록:
+`ko-kr` 条目的七个搜索词，完整中文释义：
 
-```
-iPhone home screen
-home screen layout
-app icon organizer
-iOS device manager
-아이폰 홈화면
-홈화면 정리
-아이콘 정리
+```text
+iPhone 主屏幕
+主屏幕布局
+应用图标整理器
+iOS 设备管理器
+iPhone 主屏幕
+主屏幕整理
+图标整理
 ```
 
-en-us 목록 — 뒤의 셋만 다르다(낱말 합계 21개, 상한에 딱 맞다):
+`en-us` 条目的七个搜索词，完整中文释义：
 
-```
-iPhone home screen
-home screen layout
-app icon organizer
-iOS device manager
-home screen editor
-rearrange app icons
-iPhone folder manager
-```
-
-**앞의 넷을 두 목록에 똑같이 두는 이유:** iPhone·iOS 는 어느 언어에서나 그대로 쓰이고,
-ko-kr 목록에서도 영어로 검색하는 사람이 있다. 뒤의 셋만 그 언어에서만 통하는 낱말이라
-갈아 끼운다 — 한국어 쪽은 '아이폰/홈화면/아이콘', 영어 쪽은 편집·재배열·폴더처럼
-한국어 셋이 덮지 못한 검색 의도를 맡는다.
-
----
-
-## 3. 짧은 설명 (Short description)
-
-한국어:
-
-```
-여러 장으로 늘어난 iPhone 홈화면을 PC 한 화면에 펼쳐 놓고, 마우스로 끌어 정리한 뒤
-기기에 그대로 반영합니다. 적용 전에 항상 백업을 남깁니다.
+```text
+iPhone 主屏幕
+主屏幕布局
+应用图标整理器
+iOS 设备管理器
+主屏幕编辑器
+重新排列应用图标
+iPhone 文件夹管理器
 ```
 
-English:
+前四项在原两个语言条目中均使用相同英文词组，原因是 iPhone、iOS 通用，也有人在韩文商店中用英文搜索。后三项分别覆盖当地语言的主屏幕/图标整理，或编辑/重排/文件夹等搜索意图；这解释了中文释义中看似重复的历史词条。
 
-```
-Spread every iPhone home screen page across one PC window, rearrange icons by dragging,
-and write the result back to the device. A full backup is taken before every write.
-```
+## 3. 简短描述
 
----
+### 原 `ko-kr` 条目的中文版本
 
-## 4. 설명 (Description)
-
-> **첫 문단이 준비물을 말한다.** 준비물을 모르고 받은 사람이 첫 화면에서 막히면 그대로
-> 별 하나가 된다. 두 번째로 말하는 것이 **부작용**이다 — 앱 라이브러리에만 있던 앱이
-> 마지막 페이지 끝에 되붙는 것은 우리가 막을 수 없고, 백업으로도 되돌려지지 않는다.
-> 프로그램도 적용 직전에 알리지만, 받기 **전에** 아는 편이 낫다.
-
-### 한국어
-
-```
-■ 시작하기 전에 (필수)
-
-이 프로그램은 Apple 의 "Apple Devices"(또는 iTunes)가 설치된 Windows PC 에서
-동작합니다. 두 가지 모두 Microsoft Store 에서 무료로 받을 수 있습니다. iPhone 을
-USB 로 연결하고 기기에서 "이 컴퓨터를 신뢰하시겠습니까?"에 [신뢰]를 눌러 주세요.
-탈옥, 개발자 모드, Xcode 는 필요하지 않습니다.
-
-■ 무엇을 하는 프로그램인가
-
-iPhone 의 홈화면이 여러 장으로 늘어나면, 3페이지의 앱을 1페이지로 옮기는 일조차
-손가락으로 끌면서 화면이 넘어가기를 기다려야 합니다. HomeSpread 는 그 페이지들을
-PC 화면 하나에 나란히 펼쳐 놓습니다. 전체를 한눈에 보면서 마우스로 끌어 옮기고,
-다 됐을 때 한 번에 기기로 보냅니다.
-
-■ 할 수 있는 일
-
-· 모든 홈화면 페이지와 독, 폴더 안까지 한 화면에 펼쳐 보기
-· 마우스 드래그로 앱 옮기기 — 페이지 사이, 폴더 안팎 모두
-· 앱을 앱 위에 겹쳐 새 폴더 만들기, 폴더 이름 바꾸기
-· 꽉 찬 페이지에 끼워 넣으면 iPhone 과 똑같이 뒤로 밀려납니다
-· 빈 폴더와 빈 페이지는 스스로 사라집니다
-· 되돌리기 / 다시 하기
-· 적용 전 자동 백업, 그리고 언제든 백업으로 복원
-· 한국어 · English
-
-■ 반드시 알아 두실 것 (되돌릴 수 없는 한 가지)
-
-iPhone 에 배치를 쓰는 방법은 "일부만 고치기"가 아니라 "전체 덮어쓰기" 하나뿐입니다.
-그래서 홈화면에는 없고 앱 라이브러리에만 있던 앱이 있으면, iOS 가 그 앱들을 마지막
-페이지 끝에 다시 붙입니다. 이것은 프로그램이 막을 수 있는 일이 아니며 백업으로
-복원해도(복원 역시 쓰기이므로) 되돌아가지 않습니다.
-
-HomeSpread 는 적용을 누르기 전에 그런 앱이 몇 개이고 무엇인지 이름까지 보여 드립니다.
-알고 누르는 것과 모르고 누르는 것은 다르기 때문입니다.
-
-■ 안전에 대해
-
-· 적용 직전에 기기의 현재 배치를 통째로 백업합니다. 백업에 실패하면 쓰지 않습니다
-· 백업은 자동으로 지우지 않습니다
-· 프로그램이 해석하지 못한 항목(위젯 등)은 손대지 않고 원본 그대로 다시 싣습니다
-· 쓴 뒤에 기기에서 다시 읽어, 보낸 것과 같은지 대조해 알려 드립니다
-
-■ 개인정보
-
-아무것도 수집하지 않고 아무 데도 보내지 않습니다. 계정도, 로그인도 없습니다.
-백업 · 로그 · 아이콘 그림은 모두 이 PC 안에만 남습니다. 통신은 Apple 구성요소가 여는
-같은 PC 안의 주소(127.0.0.1:27015) 하나뿐입니다.
-
-■ 라이선스
-
-HomeSpread 는 GPL-3.0-or-later 자유 소프트웨어입니다. 전체 소스는
-https://github.com/humanlyj/HomeSpread 에서 받을 수 있습니다.
-
-■ 확인된 환경
-
-iPhone 14 / iOS 26.1 에서 읽기 · 편집 · 쓰기 · 되돌리기 전 구간을 실기기로
-확인했습니다. 다른 기기와 iOS 판에서도 같은 경로를 쓰지만, 처음 쓸 때는 백업이
-남는지 먼저 확인해 보시기를 권합니다.
-
-■ 상표와 그림에 대하여
-
-HomeSpread 는 Apple Inc. 와 제휴하거나 후원 · 승인받은 제품이 아닙니다. Apple,
-iPhone, iOS, iTunes 는 Apple Inc. 의 상표입니다. 이 목록의 화면 그림은 Windows 에서
-도는 HomeSpread 창을 그대로 찍은 것이고, 그 안에 놓인 배치와 아이콘은 설명을 위해
-지어낸 것입니다 — 실제 앱도, 실제 앱의 아이콘도 아닙니다.
+```text
+将分散在多页的 iPhone 主屏幕放到电脑的一个窗口中，用鼠标拖动整理，再将确认后的结果写回设备。每次写入前都保存完整布局备份。
 ```
 
-### English
+### 原 `en-us` 条目的中文版本
 
+```text
+在电脑的同一窗口展开每一页 iPhone 主屏幕，拖动图标重新排列，然后将结果写回设备。每次写入之前都备份整份当前布局。
 ```
-■ Before you start (required)
 
-HomeSpread needs Apple's "Apple Devices" app (or iTunes) installed on your Windows PC —
-both are free in the Microsoft Store. Connect your iPhone over USB and tap "Trust" when
-the device asks whether to trust this computer. No jailbreak, no developer mode, and no
-Xcode are required.
+## 4. 详细描述
 
-■ What it does
+描述先说明所需设备和 Windows 组件，再说明 App 资源库回填。用户在下载前就应知道限制；程序里的确认框不能替代产品描述。
 
-Once your iPhone home screen grows to several pages, moving an app from page 3 to page 1
-means dragging with a fingertip and waiting for each page to slide past. HomeSpread lays
-those pages side by side in a single PC window. See the whole layout at once, rearrange
-it with the mouse, and send it to the device when you are done.
+以下两份保留原条目的完整段落和功能内容，同时按本地实现校订安全表述。原稿已有自动备份、原始数据保留、写后比较和资源库回填提示；同设备归属、过期快照检查、会话门禁及恢复后编辑许可是本地移植新增的保护。下面的阅读版不是当时商店实际发布文字，不能据此声称上游 1.0.22 已包含这些修复。
 
-■ Features
+### 基于原 `ko-kr` 条目的完整中文校订阅读版
 
-· Every home screen page, the dock, and the inside of every folder on one canvas
-· Drag apps with the mouse — across pages and in and out of folders
-· Drop one app onto another to create a folder; rename folders
-· Drop into a full page and the rest shifts along, exactly as iPhone does
-· Empty folders and empty pages remove themselves
-· Undo / redo
-· Automatic backup before every write, and restore from any backup at any time
-· Korean and English
+```text
+■ 开始之前：必要条件
 
-■ One thing you cannot undo
+此 Windows 商店版本需要电脑安装 Apple Devices 或 iTunes，原提交时二者均可从 Microsoft Store 免费取得。请使用 USB 数据线连接 iPhone，并在手机询问是否信任此电脑时选择“信任”。不需要越狱、开发者模式或 Xcode。
 
-The only way to write a layout to an iPhone is a full overwrite — there is no partial
-edit. As a result, any app that was installed but kept only in the App Library (not on
-a home screen) is re-added by iOS at the end of the last page. No program can prevent
-this, and restoring a backup does not undo it, because restoring is itself a write.
+■ 应用的用途
 
-HomeSpread counts those apps and lists them by name before you press Apply. Knowing
-before you press is not the same as finding out afterwards.
+当 iPhone 主屏幕增加到多页时，把第 3 页应用移到第 1 页需要一直拖住图标并等待翻页。HomeSpread 将页面并排放在电脑同一窗口中。你可以查看完整结构，用鼠标调整位置，再确认并将结果提交给手机。
 
-■ About safety
+■ 功能
 
-· The device's current layout is backed up in full immediately before every write.
-  If the backup fails, nothing is written
-· Backups are never deleted automatically
-· Items the program does not understand (widgets and the like) are carried through
-  untouched, exactly as they were read
-· After writing, the layout is read back and compared with what was sent
+· 同一画布展示主屏幕页面、程序坞和文件夹内部
+· 用鼠标跨页移动应用，以及移入或移出文件夹
+· 将一个应用叠放到另一个应用上创建文件夹，并修改文件夹名称
+· 向满页的具体位置插入时，后续条目按模型规则顺移
+· 清理因编辑产生的空文件夹和空页，同时保留页面组需要的最后一页
+· 撤销和重做
+· 每次写入前自动备份，并可选择同设备的有效备份恢复；恢复前也备份现状
+· 原商店版本提供韩文和英文界面
 
-■ Privacy
+■ 必须了解的系统副作用
 
-Nothing is collected and nothing is sent anywhere. There is no account and no sign-in.
-Backups, logs, and cached icons stay on this PC. The only network traffic is to an
-address on this same PC (127.0.0.1:27015) opened by Apple's own components.
+本工具通过整份替换的接口写入桌面，而非只修改一个图标。因此，仅在 App 资源库、没有放在主屏幕上的应用，可能被 iOS 重新放回最后一页。恢复备份同样会写入，不能消除这项副作用。需要移除这些桌面图标时，应在 iPhone 上手动选择“从主屏幕移除”。
 
-■ License
+应用在取得安装清单后，会在应用前展示可能回填的应用数量和名称。清单查询失败或缺失时，仍会提示该系统行为，不把未知数量当作没有风险。
 
-HomeSpread is free software under GPL-3.0-or-later. The complete source is at
+■ 数据保护
+
+· 写入前重新读取当前布局，创建同设备备份并核对完整性。备份失败即停止
+· 普通编辑对照读取时的原始快照；手机端已变化时拒绝覆盖
+· 备份不会自动删除，但备份只包含布局，不是整机数据备份
+· 保留返回结果中未理解的字段；普通编辑拒绝移动未知项、丢失或重复原始条目
+· 写入后重新读取，检查丢失、意外位移和内容变化，并单独报告新增项
+· 普通编辑先经明确确认的本次会话原样回写测试；该测试本身也是真实写入
+· 失败后保留明确确认的同设备恢复入口；成功恢复并安全读回也可恢复本会话编辑权限
+
+■ 隐私
+
+应用不要求 HomeSpread 账户或登录，不向开发者上传桌面数据。布局备份、诊断日志和图标缓存留在本机；它们可能含应用清单、文件夹名称、设备名称和网页快捷方式 URL。分享诊断文件前应检查内容。
+
+此 Windows 路径通过本机 Apple 连接组件的 127.0.0.1:27015 与手机通信。只有用户点击相关按钮时，才在外部浏览器打开源码、赞助或商店页面。安装依赖和构建审计属于另行执行的联网操作。
+
+■ 许可证
+
+HomeSpread 按 GPL-3.0-or-later 分发。上游源码：
 https://github.com/humanlyj/HomeSpread
 
-■ Verified on
+修改版的分发还必须提供与该制品对应的修改后源码，不能只用上游地址代替。
 
-Reading, editing, writing, and restoring were all verified end to end on a real device
-(iPhone 14 / iOS 26.1). Other devices and iOS versions use the same path, but on a first
-run we recommend confirming that a backup file is created before you apply.
+■ 已验证环境
 
-■ Trademarks and screenshots
+上游历史记录包括 iPhone 14 / iOS 26.1 的读取、编辑、写入及恢复流程验证。该结果只覆盖当时的环境，不能因其它设备使用相同接口就推断兼容。当前 macOS 移植的只读、备份和模拟测试记录，不构成真实写入通过的证明。
 
-HomeSpread is not affiliated with, sponsored by, or endorsed by Apple Inc. Apple, iPhone,
-iOS, and iTunes are trademarks of Apple Inc. Every screenshot in this listing is the
-HomeSpread window running on Windows, captured as it appears. The layout and the icons
-inside it were made up for illustration — they are not real apps and not real app icons.
+■ 商标与截图
+
+HomeSpread 不隶属于 Apple Inc.，也未获 Apple 赞助或认可。Apple、iPhone、iOS、iTunes 是 Apple Inc. 的商标。此历史 Windows 条目的截图展示运行中的 HomeSpread 窗口；布局、名称和图标为说明功能而虚构，不是真实用户清单或真实应用图标。
 ```
 
----
+### 基于原 `en-us` 条目的完整中文校订阅读版
 
-## 5. 제품 기능 (Product features) — 최대 20개, 각 200자
+```text
+■ 使用前准备
 
+此 Windows 版 HomeSpread 需要 Apple Devices 或 iTunes。原提交时可从 Microsoft Store 免费安装。通过 USB 连接 iPhone，并在手机询问信任此电脑时点击“信任”。无需越狱、开发者模式或 Xcode。
+
+■ 工作方式
+
+当 iPhone 桌面有多页时，将第 3 页应用移到第 1 页，要拖住图标等待每一页滑过。HomeSpread 在电脑一个窗口中并排展开这些页面。查看整体布局，用鼠标重排，再确认并提交给设备。
+
+■ 功能
+
+· 在一个画布查看所有主屏幕页面、程序坞和文件夹内容
+· 鼠标拖动应用跨页移动，或移入移出文件夹
+· 将应用叠放创建文件夹，支持重命名
+· 向满页具体位置插入时，模型计算后续条目的顺移
+· 编辑产生的空文件夹和空页自动清理，页面组所需最后一页保留
+· 撤销与重做
+· 每次写入前自动备份；从当前设备的有效备份恢复时再次备份现状
+· 原商店版本支持韩文与英文
+
+■ 一项无法通过恢复消除的影响
+
+此工具以整份覆盖接口写入布局，没有部分图标更新请求。已安装但仅保留在 App 资源库中的应用，可能被 iOS 放回最后一页。恢复也是一次写入，因此不会撤销这项回填。可在手机上手动将不需要的图标从主屏幕移除。
+
+能取得安装清单时，HomeSpread 在应用前显示可能回填的数量与名称；不能取得清单时仍保留通用风险提示。用户在执行前应了解影响，而非完成后才发现。
+
+■ 安全措施
+
+· 每次写入前保存当前整份布局并重新读取校验；备份失败则不写入
+· 普通编辑检查手机现状是否仍与读入快照一致，变化时停止
+· 备份不自动删除；布局备份不包含应用数据、照片或完整系统状态
+· 未解释的返回数据原样保留，未知项不允许直接或间接移动；原始条目丢失或重复会阻断编辑写入
+· 写后重新读取并比较丢失、意外位移、内容变化和新增项
+· 普通编辑需要本次会话写入验证；原样回写测试需明确确认且会真实写入
+· 同设备恢复是独立的明确确认路径，不因测试失败而被关闭；成功恢复并安全读回也可重新建立本会话编辑许可
+
+■ 隐私
+
+不需要 HomeSpread 账户，也不向开发者上传布局数据。备份、日志和图标缓存保存在电脑上；它们仍可能包含应用、文件夹、设备名称以及网页快捷方式 URL，不是匿名文件。
+
+Windows 设备通信使用同一电脑上由 Apple 组件提供的 127.0.0.1:27015。源码、GitHub Sponsors 和商店链接只有在用户点击时才由外部浏览器打开。安装和审计步骤的联网请求与应用运行时行为分别记录。
+
+■ 许可
+
+HomeSpread 是 GPL-3.0-or-later 自由软件。上游完整源码位于：
+https://github.com/humanlyj/HomeSpread
+
+修改制品的提供者也需要提供其对应的修改后源码。
+
+■ 验证范围
+
+上游在一部 iPhone 14 / iOS 26.1 上记录了从读取、编辑、写入到恢复的完整实机流程。不能把这一历史结果扩展到其它机型或系统。当前 Mac 上读取和备份成功，以及模拟测试通过，均不代表手机已经接受真实写入。
+
+■ 商标与图片
+
+HomeSpread 与 Apple Inc. 没有隶属、赞助或认可关系。Apple、iPhone、iOS、iTunes 是 Apple Inc. 的商标。此历史条目的每张截图均为 Windows 上运行的 HomeSpread 窗口；内部布局、名称和图标是演示素材，不是真实应用或用户设备图标。
 ```
-여러 홈화면 페이지와 독을 PC 한 화면에 펼쳐 봅니다
-마우스 드래그로 페이지 사이·폴더 안팎으로 앱을 옮깁니다
-앱을 겹쳐 새 폴더를 만들고 이름을 바꿉니다
-꽉 찬 페이지에 끼우면 iPhone 과 똑같이 뒤가 밀려납니다
-적용 전 자동 백업 — 백업에 실패하면 쓰지 않습니다
-언제든 백업으로 되돌립니다
-쓴 뒤 기기에서 되읽어 보낸 것과 대조합니다
-아무것도 수집하지 않고 아무 데도 보내지 않습니다
-GPL-3.0-or-later 자유 소프트웨어 · 소스 전체 공개
-한국어 · English
+
+两份历史草稿都包含“商标与截图”段落，但 2026-09-01 实际公开条目的两种语言描述均未包含它，详见第 05 文档。本文保存草稿内容，不把草稿等同于实际发布结果。
+
+## 5. 产品功能字段
+
+原规则：最多 20 条，每条不超过 200 字符。以下保留原十条功能的完整中文内容，并按实际安全边界表达：
+
+```text
+在电脑同一窗口展开多页主屏幕和程序坞
+使用鼠标跨页移动应用，以及移入移出文件夹
+叠放应用创建文件夹，并修改文件夹名称
+向满页具体位置插入时，由布局模型计算顺移
+应用前自动创建并校验备份，失败则停止写入
+经明确确认恢复同设备有效备份，恢复前再次备份
+写入后从设备重新读取并比较结果
+不向开发者上传布局数据，本地诊断文件仍需妥善保管
+GPL-3.0-or-later 自由软件，提供对应源码
+原商店版提供韩文和英文，当前 macOS 中文移植另提供中文
 ```
 
----
+## 6. 原 Windows 系统要求
 
-## 6. 시스템 요구 사항
-
-| 칸 | 값 |
+| 字段 | 值 |
 |---|---|
-| 아키텍처 | x64 |
-| 최소 OS | Windows 10 버전 1809 (10.0.17763) 이상 |
+| 架构 | x64 |
+| 最低操作系统 | Windows 10 1809（10.0.17763）或以上 |
 
-**추가 하드웨어/소프트웨어 안내(Notes):**
+附加硬件/软件说明的中文版本：
 
+```text
+需要安装 Apple Devices 或 iTunes；原提交时可从 Microsoft Store 免费取得。
+需要 iPhone 和 USB 数据线，并在手机上信任这台电脑。
 ```
-Apple Devices 또는 iTunes 가 설치되어 있어야 합니다(Microsoft Store 에서 무료).
-iPhone 과 USB 케이블이 필요하며, 기기에서 이 PC 를 "신뢰"해야 합니다.
-```
 
----
+当前 macOS 移植的架构和最低系统要求见根目录中文 README 及 `HomeSpread-macos.spec`，不能用本表代替。
 
-## 7. 개인정보·연락처·라이선스 약관
+## 7. 隐私、联系方式与许可证
 
-| 칸 | 값 |
+| 字段 | 原草稿值 |
 |---|---|
-| 개인정보 처리방침 URL | `https://github.com/humanlyj/HomeSpread/blob/main/PRIVACY.md` |
-| 지원 연락처 | `forad@ujak.net` |
-| 웹사이트 | `https://github.com/humanlyj/HomeSpread` |
+| 隐私政策 URL | `https://github.com/humanlyj/HomeSpread/blob/main/PRIVACY.md` |
+| 支持邮件 | `forad@ujak.net` |
+| 项目网站 | `https://github.com/humanlyj/HomeSpread` |
 
-2026-08-27 에 로그인하지 않은 상태로 세 주소가 모두 열리는 것을 확인했다(HTTP 200).
-로그인해야 읽을 수 있는 주소는 없는 주소와 같다.
+实际商店支持地址为 `https://github.com/humanlyj/HomeSpread/issues`。原文称 2026-08-27 匿名 HTTP 访问成功；该说法只适用于网页地址，电子邮箱没有 HTTP 200 状态，已明确区分。能够公开读取源码和政策是原提交检查的一部分。
 
-**라이선스 약관 — 표준 약관 대신 우리 것을 낸다.**
-개발자 계약은 개발자가 자기 라이선스 약관을 대신 제출하는 것을 허용하고, FOSS 가
-요구하는 범위에서 표준 약관의 역공학·복제·재배포 금지를 넘어서도록 명시적으로 허락한다.
-`라이선스 약관` 칸에 URL 을 넣는다:
+### 自有许可证条款
 
-```
+上游依据当时开发者协议中的自有许可证和自由开源软件例外，提交 GPL-3.0-or-later 原文，替代默认标准条款。原填写地址：
+
+```text
 https://github.com/humanlyj/HomeSpread/blob/main/LICENSE
 ```
 
----
+这是历史提交选择，不替代重新分发时对当前条款、依赖许可和对应源码义务的核对。
 
-## 8. 제3자 결제 API 신고 (정책 10.8.2)
+## 8. 第三方支付 API 声明
 
-Partner Center 가 "제품이 제3자 결제 API 를 사용합니까?"를 물으면 **예**로 답한다.
-설명 칸에 넣을 말:
+原政策依据为 10.8.2。上游对“是否使用第三方支付 API”回答“是”，说明文字的中文版本如下：
 
-```
-설정 창에 GitHub Sponsors 후원 버튼이 하나 있습니다. 자발적 후원만 받으며
-후원자에게 디지털 재화, 추가 기능, 광고 제거 등 어떤 대가도 제공하지 않습니다
-(정책 10.8.2). 버튼을 누르면 기본 브라우저에서 GitHub Sponsors 페이지가 열리고,
-앱 안에서 결제를 받거나 결제 정보를 다루지 않습니다.
+```text
+设置窗口提供一个 GitHub Sponsors 赞助按钮，只接受自愿赞助。
+赞助者不会获得数字商品、额外功能、去广告或其它回报。
+点击后由默认浏览器打开 GitHub Sponsors 页面，应用内部不收取付款，也不处理支付信息。
 ```
 
-> 이 선을 넘는 순간 — 후원자에게 무엇이든 돌려주는 순간 — Microsoft 인앱 결제 API 로
-> 넘어가야 한다. 단추를 만들 때부터 아무것도 주지 않도록 지어 둔 이유다.
+产品保留无回报的赞助模式。如果增加与付款挂钩的功能，应在实现前重新审查商店支付规则；这不是已安排的变更。原 PayPal 入口已移除，不能把其参数或行为用于解释当前 GitHub Sponsors。
 
----
+## 9. 年龄评级问卷记录
 
-## 9. 연령 등급 (IARC 설문)
+以下是原 IARC 填答的中文含义，不是替新的商店提交自动生成答案：
 
-수집·공유·사용자 간 소통이 전혀 없으므로 대부분 **아니오**다. 걸릴 만한 문항의 답:
-
-| 문항 | 답 | 근거 |
+| 问题 | 原回答 | 理由 |
 |---|---|---|
-| 폭력·성적 표현·비속어·약물 | 아니오 | 없다 |
-| 사용자 간 소통(채팅·메시지) | 아니오 | 없다 |
-| 사용자 위치 공유 | 아니오 | 없다 |
-| 개인정보 수집·제3자 공유 | 아니오 | 아무것도 수집하지 않는다(`PRIVACY.md`) |
-| 디지털 재화 구매 | 아니오 | 후원은 대가 없는 기부이고 앱 밖 브라우저에서 일어난다 |
-| 사용자 생성 콘텐츠 공유 | 아니오 | 없다 |
-| 앱에서 웹으로 나가는 링크 | 예 | GitHub Sponsors, 저장소, Microsoft Store(Apple 구성요소 안내) |
+| 暴力、性内容、粗口、药物 | 否 | 产品不提供这些内容 |
+| 用户之间聊天或发消息 | 否 | 没有该功能 |
+| 分享用户位置 | 否 | 没有该功能 |
+| 向开发者或第三方收集、共享个人资料 | 否 | 应用不上传布局；本地处理和诊断数据仍须在隐私政策说明 |
+| 购买数字商品 | 否 | 赞助没有回报，在外部浏览器进行 |
+| 分享用户生成内容 | 否 | 没有产品内分享功能；用户手动导出诊断另行处理 |
+| 从应用打开网页 | 是 | GitHub Sponsors、源码仓库及 Windows 的 Apple 组件商店入口 |
 
----
+## 10. 认证备注
 
-## 10. 인증 담당자에게 남기는 메모 (Notes for certification)
+没有连接 iPhone 的审核电脑只能看到启动引导。该行为需要提前说明，避免被误认为程序无法运行。
 
-> **이 칸을 비우면 떨어질 가능성이 크다.** 인증 담당자의 PC 에는 iPhone 이 꽂혀 있지
-> 않다. 그 상태에서 프로그램을 켜면 편집 화면이 아니라 준비물 안내판이 뜬다 — 미리
-> 말해 두지 않으면 "동작하지 않는 앱"으로 읽힌다.
+原 Windows 备注的完整中文版本：
 
-```
-이 앱은 USB 로 연결된 iPhone 의 홈화면 배치를 읽고 편집해 다시 쓰는 도구입니다.
-검토용 계정이나 로그인은 없습니다.
+```text
+该应用用于读取、编辑并写回通过 USB 连接的 iPhone 主屏幕布局。
+没有测试账户或登录要求。
 
-iPhone 이 연결되어 있지 않은 PC 에서 실행하면, 앱은 오류 없이 시작한 뒤 준비물
-안내 화면을 보여줍니다. 이 화면은 (1) Apple Devices 또는 iTunes 설치 여부와
-(2) Apple 구성요소가 127.0.0.1:27015 를 열고 있는지를 3초마다 다시 확인하고,
-설치가 필요하면 Microsoft Store 의 해당 페이지로 안내합니다. 이것이 기기 없이
-확인할 수 있는 정상 동작입니다.
+未连接 iPhone 时，程序可正常启动并显示准备条件引导。Windows 引导每三秒检查 Apple Devices/iTunes 组件线索及 127.0.0.1:27015 的可达性，需要安装时提供 Microsoft Store 入口。这是没有设备时可以验证的正常状态；服务可达本身不表示已与特定手机完成配对。
 
-기기를 연결해 전체 기능을 확인하시려면:
-1. Microsoft Store 에서 "Apple Devices" 를 설치하고 한 번 실행합니다
-2. iPhone 을 USB 로 연결하고 기기 화면에서 [신뢰] 를 누릅니다
-3. 앱의 [기기에서 읽기] 를 누르면 홈화면 페이지들이 펼쳐집니다
-탈옥, 개발자 모드, Xcode, 별도 드라이버는 필요하지 않습니다.
+连接设备查看完整功能：
+1. 从 Microsoft Store 安装 Apple Devices，并启动一次。
+2. 通过 USB 数据线连接 iPhone，解锁并在手机选择“信任”。
+3. 点击应用中的“从设备读取”，展开主屏幕页面。
+所用路径不要求越狱、开发者模式、Xcode 或额外非 Apple 驱动。
 
-네트워크: 인터넷으로 나가는 통신이 없습니다. 유일한 소켓 연결은 같은 PC 안의
-127.0.0.1:27015 이며, 이는 Apple 이 설치한 구성요소가 여는 기기 통신 창구입니다.
-사용자가 버튼을 눌렀을 때만 기본 브라우저로 외부 주소(GitHub Sponsors 후원,
-GitHub 저장소, Microsoft Store)를 엽니다.
+读取不会自动写入。普通编辑应用需要本次会话写入验证；原样回写兼容性测试必须明确确认，且可能将 App 资源库中的应用重新放回桌面。恢复是独立确认路径，只接受同设备有效备份，并在恢复前备份现状。成功恢复并安全读回也可重新建立本会话编辑许可。
 
-파일: 백업·로그는 문서 폴더의 HomeSpread 아래에, 아이콘 캐시는 %TEMP% 아래에
-만듭니다. 설치 폴더에는 아무것도 쓰지 않습니다.
+网络：应用不上传布局或诊断资料。Windows 设备连接使用同一电脑上的 127.0.0.1:27015，由 Apple 组件提供。只有用户点击按钮时，才通过默认浏览器打开 GitHub Sponsors、源码仓库或 Microsoft Store。
 
-라이선스: GPL-3.0-or-later 입니다. 표준 라이선스 약관 대신 제출한 약관을 확인해
-주십시오. 전체 소스: https://github.com/humanlyj/HomeSpread
+文件：此 Windows 商店安装将备份、日志和设置保存在用户文档目录的 HomeSpread 下，图标缓存放在 %TEMP%。安装目录不存放用户数据。诊断可能包含应用名称、设备名称和网页快捷方式 URL，不能视作匿名资料。
+
+许可证：GPL-3.0-or-later。请核对提交的自有许可证条款。
+上游源码：https://github.com/humanlyj/HomeSpread
 ```
 
----
+上游当时实际录入韩文和英文；上面保留其说明结构并明确当前安全门禁，不声称历史 1.0.22 已含本次修复。当前 macOS 使用系统 usbmuxd、Finder 信任和 Application Support/Caches 目录，不安装 Microsoft Store 组件。
 
-## 11. 그림
+## 11. 图片资产
 
-| 칸 | 요건 | 상태 |
+| 字段 | 原提交要求 | 资产 |
 |---|---|---|
-| 스토어 로고 | 300x300 이상 | `assets/store-listing-300.png` **있음** |
-| 앱 타일 로고 한 벌 | MSIX 매니페스트가 가리킨다 | `assets/logo/` 14장 **있음** (`scripts/make_logos.py` 가 그린다) |
-| 스크린샷 | 최소 1장, 1366x768 이상 | `_workspace/screenshots/` **8장 있음** (1760x911, 언어별 4장 — 창테두리 포함) |
+| 商店标志 | 至少 300×300 | `assets/store-listing-300.png` |
+| 应用磁贴标志 | 由 MSIX 清单引用 | `assets/logo/` 共 14 张，由 `scripts/make_logos.py` 生成 |
+| 截图 | 至少一张，最低 1366×768 | `_workspace/screenshots/` 共 8 张，1760×911，原韩文/英文各 4 张，包含窗框 |
 
-### 무엇을 찍었는가
+**现有 `*_ko.png` 和 `*_en.png` 是历史韩文、英文 Windows 截图，图片本身未汉化。**下方说明文字已全部译为中文，文件名保持不变，不能把这些图片宣称为中文版界面截图。
 
-핵심 장면은 "여러 페이지가 한 화면에 펼쳐진 모습" 하나다. 그런데 그 장면을 만들려면
-실제 배치와 아이콘 그림이 있어야 한다. 두 번 갈렸다.
+### 素材来源决定
 
-**첫 번째 갈림 — 누구의 배치인가.** 실기기 배치를 그대로 쓰면 가장 진짜 같지만
-사용자의 앱 목록이 통째로 공개된다. 스토어 페이지는 영구히 공개되는 자리이고 내린
-뒤에도 캐시와 색인에 남는다. 홈화면 그림 한 장은 그 사람이 무슨 앱을 쓰는지 —
-은행·병원·회사 — 를 알려준다. 되돌릴 수 없는 공개이므로 기본값은 "보여주지 않는다"
-여야 한다. 그래서 **지어낸 배치**를 택했다.
+核心画面是“多个页面在同一窗口展开”。原制作过程分两步处理素材来源：
 
-**두 번째 갈림 — 누구의 아이콘인가(2026-08-31).** 처음에는 배치만 지어내고 아이콘은
-기기 캐시의 진짜 Apple 아이콘을 썼다. 그 그림이 **10.1.1 Inaccurate Representation**
-으로 거절됐다 — "제출된 그림에 Windows 가 아닌 UI 나 기기가 보인다". 화면의 거의
-전부가 Apple 의 아이콘 저작물이었으니 심사자가 iPhone 화면으로 읽은 것은 당연하고,
-게다가 그 아이콘은 우리가 만든 것도 허락받은 것도 아니다(정책 11.2). 그래서 이제
-**아이콘도 우리가 그린다**(`scripts/make_demo_icons.py`) — 색 타일 위의 추상 도형이라
-어느 회사의 것도 아니고, 앱 이름도 제품명이 아닌 일반 낱말이다.
+1. **布局来源。**真实布局最接近使用场景，但会公开用户的完整应用清单，可能暴露银行、医疗、工作等信息。商店内容可能长期被缓存和索引，因此采用虚构布局，而非私人设备数据。
+2. **图标来源。**首版只虚构布局，却使用设备缓存的真实 Apple 图标。2026-08-31 记录中，该方案因 10.1.1 的展示问题被拒，也存在素材授权疑问；因此改用 `scripts/make_demo_icons.py` 自绘彩色块和抽象图形，名称改为普通词，不指向真实产品。
 
-**창테두리를 함께 찍는다.** `window.grab()` 은 창의 속만 찍어, 그 그림만으로는 무엇
-위에서 도는 프로그램인지 말해 주지 않는다. 이제 화면에 실제로 떠 있는 창을 Windows 가
-그린 제목 표시줄째로 잘라 온다 — 표시줄에 `HomeSpread v01.00.22` 와 최소화·최대화·닫기
-단추가 그대로 보인다.
+### 截图方式与隐私检查
 
-**잘라 온 것을 다시 확인한다.** 화면을 잘라 오는 일은 그 자리에 무엇이 있든 가져오므로,
-우리 창이 앞에 서지 못한 첫 시도에서 실제로 **다른 프로그램의 창**(대화·메일·달력)이
-그림에 담겼다. 지금은 창을 맨 위에 세우고, 잘라 온 것의 창 속을 `window.grab()` 이
-그린 것과 견주어 다르면 **저장하지 않고 멈춘다.**
+`window.grab()` 只截客户区，不能显示所在操作系统，因此改为截取实际屏幕上的完整 Windows 窗口，保留 `HomeSpread v01.00.22` 标题及最小化、最大化、关闭按钮。
 
-배치는 `scripts/make_demo_layout.py`, 아이콘은 `scripts/make_demo_icons.py`, 그림은
-`scripts/make_screenshots.py` 가 만든다. 마지막 하나를 실행하면 앞의 둘을 스스로
-부르므로 **기기도 백업도 아이콘 캐시도 필요 없다** — 저장소만 받으면 누구나 같은
-그림을 다시 만든다. 이름을 다시 바꾸는 날에도 손으로 찍을 일이 없다.
+第一次屏幕截取曾因应用未置顶而包含其它聊天、邮件和日历窗口。原记录称立即删除且未上传。脚本随后先将目标窗口置顶，再把截取的内部区域与 `window.grab()` 比较，不一致则停止且不保存。
 
-영어 그림에서는 앱 이름만 영어로 갈아 끼운다. 이름은 기기의 언어를 따라오는데 우리
-기기가 한국어라, 그대로 두면 en-US 목록에 읽히지 않는 그림이 올라간다.
+布局由 `scripts/make_demo_layout.py` 生成，图标由 `scripts/make_demo_icons.py` 生成，截图由 `scripts/make_screenshots.py` 生成。最后一个脚本会调用前两者，不需要真实手机、备份或用户图标缓存。重复生成使用稳定输入，不依赖手工搭建私人布局。
 
-### 올릴 순서 (같은 순서로 두 언어 모두)
+原英文截图还把虚构应用名称换成英文，以便 `en-us` 读者理解；真实设备名称会随设备语言变化，所以不能直接依赖当时韩文手机的数据。这一历史语言适配不表示图片已改成中文。
 
-| 순서 | 파일 | 캡션(ko) | 캡션(en) |
+### 原上传顺序与两套说明的中文译文
+
+| 顺序 | 文件模式 | 原韩文说明的中文版本 | 原英文说明的中文版本 |
 |---|---|---|---|
-| 1 | `01_spread_*.png` | 홈화면 4장을 PC 한 화면에 펼쳐 놓은 모습 | All your home screen pages, side by side on one screen |
-| 2 | `03_changes_*.png` | 편집하면 무엇이 바뀌는지 오른쪽에 줄줄이 선다. 그때서야 '적용'이 켜진다 | Every pending change is listed before anything is written |
-| 3 | `02_folder_*.png` | 폴더를 열어 안까지 편집한다 | Open a folder and edit what is inside |
-| 4 | `04_guide_*.png` | 기기를 붙이기 전 첫 화면 — 준비물을 스스로 보고 알려 준다 | The first screen checks the prerequisites for you |
+| 1 | `01_spread_*.png` | 在电脑一个窗口展开四页主屏幕 | 所有主屏幕页面在同一画面并排展示 |
+| 2 | `03_changes_*.png` | 编辑后，右侧逐项列出变化；有更改时才具备应用的条件 | 写入前列出每一项待应用更改 |
+| 3 | `02_folder_*.png` | 打开文件夹，编辑其内部内容 | 打开文件夹并编辑里面的项目 |
+| 4 | `04_guide_*.png` | 连接设备前的启动引导会检查并说明准备条件 | 首屏自动检查需要的准备条件 |
 
-크기는 모두 1760x911 로, 스토어 최소치(1366x768)를 넘는다. 창 속이 1760x880 이고
-Windows 가 그린 제목 표시줄과 테두리가 나머지 31 픽셀이다.
+原两种语言均按此顺序上传。八张图片都是 1760×911；内部客户区 1760×880，Windows 标题栏和边框共增加 31 像素，高于原商店最低 1366×768 要求。尺寸和语言属于历史资产描述，不代表当前 Mac 窗口截图规格。

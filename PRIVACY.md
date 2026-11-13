@@ -1,179 +1,79 @@
-# 개인정보 처리방침 · Privacy Policy
+# HomeSpread 隐私说明
 
-**제품:** HomeSpread (Mobile layout manager for iOS)
-**마지막 갱신:** 2026-08-20
-**문의:** forad@ujak.net
+**产品：** HomeSpread（iOS 主屏幕布局管理工具）
 
----
+**更新日期：** 2026-11-13
 
-## 한 줄 요약
+**适用范围：** 本仓库的中文 macOS 修改版，以及仍保留的 Windows 数据位置说明。macOS 的简明说明见 [PRIVACY.zh-CN.md](PRIVACY.zh-CN.md)。
 
-**HomeSpread 는 어떤 정보도 수집하거나 밖으로 보내지 않는다.** 이 프로그램이 다루는 것은
-전부 당신의 PC 와 USB 로 연결된 당신의 기기 사이에서만 오간다.
+HomeSpread 在本地电脑与通过 USB 连接、已获信任的 iPhone 之间处理主屏幕数据。应用不设置自有数据接收服务器，不自动上传布局、使用统计或崩溃报告，也不要求创建应用账户或登录。
 
-## 1. 우리가 수집하는 것
+## 1. 读取的数据及用途
 
-없다. 계정도, 로그인도, 사용 통계도, 오류 보고도 없다. 프로그램은 우리에게 아무것도
-보내지 않으며, 우리를 향한 서버 자체가 존재하지 않는다.
+| 数据 | 用途 |
+|---|---|
+| 主屏幕布局 `iconState` | 展示页面、应用和文件夹，构建编辑结果并核对写后状态。原始布局可能包含网页快捷方式 URL。 |
+| 已安装应用的名称与标识 | 提醒哪些仅位于 App 资源库的应用可能在写入后重新出现。 |
+| 应用图标图像 | 在电脑上绘制应用图块并建立本地图标缓存。 |
+| 设备标识 UDID | 选择设备、建立信任连接和区分备份归属。备份目录使用其 SHA-256，常见格式的日志 UDID 仅保留前四字符。 |
+| 设备名称、型号、系统和构建版本等诊断信息 | 展示连接对象、说明兼容性及定位问题。 |
+| 网格尺寸和屏幕方向等布局信息 | 按设备提供的规格排列页面。 |
 
-## 2. 프로그램이 당신의 기기에서 읽는 것
+应用不主动读取照片、通讯录、聊天消息、iCloud 密码或应用内容。设备名称、应用清单和文件夹名仍可能包含个人信息，不能因 UDID 已遮盖就把诊断报告视为匿名数据。
 
-USB 로 연결한 기기에서 다음을 읽는다. 모두 당신의 PC 안에서만 쓰인다.
+macOS 通过本地 Unix socket `/var/run/usbmuxd` 通信；Windows 通过 Apple 组件提供的本地 `127.0.0.1:27015` 通信。本分支选择 USB，不静默回退到 Wi-Fi。使用本地连接不代表数据不会保存到电脑，下节列出保存范围。
 
-| 읽는 것 | 쓰는 곳 |
-|---------|---------|
-| 홈화면 배치 정보 (`iconState`) | 화면에 페이지를 펼쳐 보이고, 편집한 결과를 되쓰기 위해 |
-| 설치된 앱 목록 | 홈화면에 없는 앱이 적용 후 끝에 붙는다는 사실을 미리 알리기 위해 |
-| 앱 아이콘 그림 | 타일에 그리기 위해 |
-| 기기 식별자(UDID) | 어느 기기의 백업인지 구분하기 위해. **로그에는 앞 4글자만 남긴다** |
+## 2. 保存到电脑的数据
 
-기기와의 통신은 Apple 이 만든 구성요소가 여는 `127.0.0.1:27015` 를 통한다. 이 주소는
-당신의 PC 를 벗어나지 않는다.
+| 文件或目录 | 内容与保留方式 |
+|---|---|
+| `backups/` | 布局原始 `.plist`、可读 `.json` 和完整性记录 `.meta.json`，按设备指纹分目录。备份不自动清理。删除会失去相应布局恢复点。 |
+| `logs/` | 会话日志、布局及设备诊断文件、手动诊断生成的报告 ZIP。仅保留最近 20 个符合本应用会话命名规则的会话，较旧匹配文件自动删除。 |
+| `settings.json` | 界面语言选择。删除后使用应用默认设置。 |
+| `icons/` | 图标与缓存索引。删除后可以从连接设备重新获取。 |
+| `pairing/` | 连接库新建的设备信任凭据。属于敏感本地数据，不加入日志报告、源码包或分发包。 |
 
-## 3. 당신의 PC 에 남는 것
+默认位置由 `src/ipsm/paths.py` 决定：
 
-| 폴더·파일 | 내용 | 지워도 되는가 |
-|-----------|------|--------------|
-| `backups/` | 적용 직전의 홈화면 배치 원본 | **지우면 되돌릴 수 없다** |
-| `logs/` | 실행 기록 (UDID 는 가려져 있다). **최근 20회분만 남고 오래된 것은 프로그램이 스스로 지운다** | 지워도 된다 |
-| `settings.json` | 고른 언어 | 지워도 된다 |
-| `HomeSpread-cache\icons\` | 아이콘 그림 | 지워도 된다. 다시 받는다 |
+| 平台与安装方式 | `backups`、`logs`、`settings.json`、`pairing` | 图标缓存 |
+|---|---|---|
+| macOS，源码或 `.app` | `~/Library/Application Support/HomeSpread/` | `~/Library/Caches/HomeSpread/icons/` |
+| Windows，源码运行 | 项目目录 | `%TEMP%\HomeSpread-cache\icons\` |
+| Windows，普通分发文件夹 | 可执行文件所在目录 | `%TEMP%\HomeSpread-cache\icons\` |
+| Windows，MSIX / Microsoft Store | 系统文档文件夹中的 `HomeSpread\`，常见为 `Documents\HomeSpread\` | `%TEMP%\HomeSpread-cache\icons\` |
 
-**어디에 만들어지는가**는 어떻게 설치했느냐에 따라 다르다.
+MSIX 安装目录 `C:\Program Files\WindowsApps\` 通常不可写，因此 Windows Store 版本将持久数据放在可访问的文档目录。实际使用的目录会写入日志。开发或测试环境可以通过 `HOMESPREAD_DATA_DIR`、`HOMESPREAD_CACHE_DIR` 明确覆盖路径。
 
-| 설치 방법 | `backups` · `logs` · `settings.json` |
-|-----------|--------------------------------------|
-| 압축을 풀어 쓰는 경우 | 실행 파일이 있는 폴더 |
-| 소스에서 실행하는 경우 | 프로젝트 폴더 |
-| Microsoft Store 에서 설치한 경우 | `문서\HomeSpread\` |
+如果数据目录位于 OneDrive、iCloud Drive 或其它同步软件管理的路径，文件可能随用户的同步设置上传；这不是 HomeSpread 的上传功能。要保留在本机，应检查相关同步范围。应用默认将备份与可清理的图标缓存分开，但显式覆盖数据目录时应避免把备份放入临时目录。
 
-Store 로 설치하면 프로그램이 놓이는 자리(`C:\Program Files\WindowsApps\`)에는 아무것도
-쓸 수 없어서, 백업을 그 옆에 둘 수가 없다. 그래서 **문서 폴더**에 만든다 — 당신이 직접
-찾아가 열어 볼 수 있는 자리여야 하기 때문이다. 어디에 만들었는지는 실행할 때마다
-`logs/` 첫 줄에 그대로 적힌다.
+应用为自建备份、诊断文件和配对目录设置当前用户的私有访问权限，例如 POSIX 系统中的目录 0700、文件 0600。应用未单独加密这些数据；当前账户下运行的程序、管理员或拥有磁盘访问权限的人仍可能读取。现有 Apple 系统配对记录由系统管理，不会因删除 HomeSpread 文件夹就必然撤销系统信任。
 
-`문서` 폴더를 OneDrive 등으로 동기화하고 있다면, **그 안에 만들어진 백업도 함께
-동기화된다.** 우리가 보내는 것이 아니라 당신이 켜 둔 동기화가 하는 일이지만, 백업에는
-당신의 홈화면 배치(앱 목록·폴더 이름·순서)가 들어 있으므로 알고 있어야 할 사실이다.
-원하지 않으면 해당 폴더를 동기화 대상에서 제외하면 된다.
+## 3. 何时写入手机
 
-아이콘 그림만은 Windows 임시 폴더(`%TEMP%`) 안에 둔다. 다시 받으면 그만인 것이라
-Windows 가 공간이 부족할 때 치워도 잃는 것이 없고, 백업이 있는 폴더가 그림 수백 개로
-불어나지 않는다. **백업과 로그는 절대 임시 폴더에 두지 않는다** — 되돌릴 길을 OS 의
-청소 대상으로 삼을 수는 없다.
+读取布局、获取图标、预览和本地编辑不会修改手机。用户在界面明确确认“原样写回校验”“应用修改”或“从备份恢复”，或在诊断命令中确认真实写入测试后，程序才会发送写入请求。
 
-이 파일들은 전부 당신의 것이다. 폴더째 지우면 그것으로 끝이며, 어디에도 사본은 없다.
-`logs/` 만은 프로그램이 스스로 오래된 것을 지운다 — 무한정 쌓이지 않게 하기 위해서다.
-`backups/` 는 **지우지 않는다.** 되돌릴 길을 우리가 임의로 없애서는 안 되기 때문이다.
+写入前先保存、同步并读回核验当前布局备份；备份失败则停止。编辑应用还会检查设备布局是否自读取后发生变化。恢复同样先备份当前状态，并检查选中备份的设备归属与内容摘要。恢复是用户明确确认的故障恢复通道，不会在失败后自动执行。
 
-## 4. 바깥으로 나가는 순간
+每次写入替换整份主屏幕。iOS 可能把仅在 App 资源库的应用重新放回桌面；再次恢复旧备份也不能消除这个系统行为。布局备份不是整机备份，不包含应用数据、照片或全部系统状态。
 
-프로그램이 인터넷에 접속하는 경우는 **당신이 눌렀을 때** 뿐이고, 그때도 브라우저를 열어
-줄 뿐이다.
+## 4. 外部链接及联网工具
 
-- **후원 버튼** — GitHub Sponsors 페이지를 브라우저로 연다. 후원하려면 GitHub 계정이
-  필요하고, 결제는 전적으로 GitHub 안에서 이루어진다. 우리는 카드번호·주소 등 결제
-  정보를 받지도 보지도 않으며, 누가 후원했는지는 GitHub 이 알려 주는 범위에서만 안다.
-  그곳에서 일어나는 일에는 GitHub 의 개인정보 처리방침이 적용된다.
-- **Apple Devices 설치 안내** — Microsoft Store 앱을 연다.
+应用自身不自动打开外部网页。用户主动操作可打开以下目的地：
 
-두 경우 모두 당신에 관한 정보를 함께 실어 보내지 않는다.
+- **GitHub Sponsors：** 赞助按钮打开上游作者页面。登录、付款和平台向作者披露的信息由 GitHub 及其支付服务处理；HomeSpread 不接收银行卡号或付款地址。该页面受 GitHub 的隐私规则约束。
+- **上游源码：** “关于”中的源码链接打开 GitHub。包内对应修改源码可在本地打开。
+- **Microsoft Store：** Windows 的 Apple Devices 安装提示可打开 Microsoft Store；macOS 不显示这个安装入口。
 
-## 5. 아이들
+这些链接不附带主屏幕数据或设备标识。浏览器和所访问服务仍可能处理常规网络访问数据。
 
-이 프로그램은 아동을 대상으로 하지 않으며, 나이를 묻지도 알지도 못한다.
+从源码安装依赖、构建时安装工具和手动运行漏洞扫描，会访问包索引或漏洞数据库。漏洞扫描发送包名与版本；这些开发步骤与日常应用运行不同，不会自动上传手机数据。
 
-## 6. 방침이 바뀌면
+## 5. 删除、报告与分享
 
-이 문서는 소스 저장소에 함께 공개되며, 바뀐 내용은 저장소 이력에 그대로 남는다.
-프로그램의 정보 창에서 현재 판과 라이선스를 확인할 수 있다.
+卸载应用不会自动删除用户数据目录。可通过 Finder（访达）或 Windows 文件资源管理器打开上述位置，按需删除备份、日志、设置和缓存。删除备份会失去对应恢复点；删除配对缓存可能影响再次连接，但不等同于撤销所有 Apple 系统配对。
 
----
+诊断 ZIP 只保存在本机。提交问题前应检查其中的设备名称、应用清单、文件夹名和布局，不要公开配对凭据。应用无法删除用户已经复制、备份、同步或分享的外部副本。
 
-# Privacy Policy (English)
+## 6. 儿童与政策更新
 
-**Product:** HomeSpread (Mobile layout manager for iOS)
-**Last updated:** 2026-08-20
-**Contact:** forad@ujak.net
-
-## In one line
-
-**HomeSpread collects nothing and sends nothing.** Everything it handles stays between your
-PC and the device you connected over USB.
-
-## 1. What we collect
-
-Nothing. No account, no sign-in, no usage statistics, no crash reports. The program sends us
-nothing, and there is no server of ours for it to send anything to.
-
-## 2. What the program reads from your device
-
-Over USB, and used only on your PC:
-
-| Read | Used for |
-|------|----------|
-| Home screen layout (`iconState`) | Showing your pages on screen and writing your edits back |
-| List of installed apps | Warning you, before applying, that apps missing from the home screen will be appended |
-| App icon images | Drawing the tiles |
-| Device identifier (UDID) | Telling one device's backups from another. **Logs keep only the first 4 characters** |
-
-Device communication goes through `127.0.0.1:27015`, opened by Apple's own component. That
-address never leaves your PC.
-
-## 3. What stays on your PC
-
-| File / folder | Contents | Safe to delete? |
-|---------------|----------|-----------------|
-| `backups/` | The exact layout captured before each write | **Deleting removes your way back** |
-| `logs/` | Run logs (UDIDs masked). **Only the last 20 runs are kept; older ones are deleted automatically** | Yes |
-| `settings.json` | Chosen language | Yes |
-| `HomeSpread-cache\icons\` | Icon images | Yes, they are fetched again |
-
-**Where** they are created depends on how you installed the app.
-
-| Installed as | `backups` · `logs` · `settings.json` |
-|--------------|--------------------------------------|
-| Unzipped folder | Next to the executable |
-| Run from source | The project folder |
-| Microsoft Store | `Documents\HomeSpread\` |
-
-A Store install lives in `C:\Program Files\WindowsApps\`, which nothing may write to, so
-backups cannot sit beside the program. They go to your **Documents** folder instead, because
-you must be able to open them yourself. Whichever location is used is written to the first
-lines of `logs/` on every run.
-
-If your `Documents` folder is synced to OneDrive or a similar service, **the backups created
-there are synced too.** That is your sync setting at work rather than anything we send, but
-a backup contains your home-screen layout (app list, folder names, order), so you should
-know. Exclude the folder from syncing if you would rather it stayed local.
-
-Icon images alone are kept inside the Windows temporary folder (`%TEMP%`). They are fetched
-again whenever they are missing, so nothing is lost if Windows clears them to reclaim space,
-and the folder holding your backups does not grow by hundreds of images. **Backups and logs
-are never placed in the temporary folder** — your way back must not be something the OS may
-clean up.
-
-These files are yours. Delete the folder and it is gone; no copy exists anywhere else.
-Only `logs/` is pruned by the program itself, so it cannot grow without bound. `backups/`
-is **never** pruned — removing your way back is not ours to decide.
-
-## 4. When anything leaves your machine
-
-Only when you click, and even then the program merely opens your browser.
-
-- **Donate button** — opens the GitHub Sponsors page. Sponsoring requires a GitHub account,
-  and payment happens entirely inside GitHub; we never receive or see card numbers, addresses,
-  or any other payment detail, and we learn who sponsored only as far as GitHub tells us.
-  GitHub's own privacy policy governs what happens there.
-- **Apple Devices install prompt** — opens the Microsoft Store app.
-
-Neither carries information about you.
-
-## 5. Children
-
-This program is not directed at children and neither asks for nor learns anyone's age.
-
-## 6. Changes
-
-This document is published with the source, so every change is visible in the repository's
-history. The program's About window shows the current version and license.
+应用不专门面向儿童，不询问或推断年龄。此说明随源码发布，修改记录保留在 Git 历史中。上游 Windows 说明曾提供联系邮箱 `forad@ujak.net`；该地址属于上游作者，不代表对本 fork 的支持承诺。本 fork 的公开问题入口为 [GitHub 仓库](https://github.com/zherendong/HomeSpread)，请勿在公开问题中附加敏感资料。

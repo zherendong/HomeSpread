@@ -1,106 +1,91 @@
-# 계약: sync-engine
+# 接口契约：sync-engine
 
-## macOS 中文移植版安全约定（2026-11-13）
+**负责人角色：**`layout-sync-engineer`。
 
-本节描述当前本地移植版，优先于下方保留的上游历史实现记录。
+**实现：**`src/ipsm/backup.py`、`src/ipsm/safeio.py`、`src/ipsm/iconstate.py`（写后比较）。
 
-```python
-BackupStore(root, device_key: str | None = None)
-BackupStore.bind_device(device_key: str) -> None
-BackupStore.load(path, *, for_restore: bool = False) -> list
-async guarded_write(bridge, store, new_state, reason, *, expected_state=None) -> Backup
-async restore(bridge, store, backup_path) -> Backup
-```
+**当前基准：**2026-11-13 macOS 中文移植版。上游 2026-08-19 的原样回写通过是历史设备证据；本机只验证读取和本地备份。
 
-写入顺序：设备归属校验 → 容器结构校验 → 读取最新桌面 → 对照 `expected_state` → 编辑条目完整性校验 → 持久化备份及归属/完整性记录 → 再次读取校验备份 → 一次 `setIconState`。普通编辑必须传入读入时的 `document.origin`；手机端发生变化时停止，不合并或覆盖。缺失、复制、改写原始叶项或移动未知项/占位均拒绝写入。
+这一层将编辑结果提交给设备。主实现直接发送完整布局，不执行设备手势序列；界面的变更清单和本地顺移计算仍然需要。`layout-diff-planner` 只保留为条件性研究方案。
 
-备份目录为 `backups/<device_key>/`。新文件名含微秒和随机后缀，不覆盖同名文件；临时文件完整写入并 `fsync` 后发布，权限 0600，目录权限 0700。`.meta.json` 记录设备键、内容摘要、创建时间和原因，元数据成功写入后才算完整备份。文件摘要检测损坏，不是对同一账户恶意进程的真实性认证。
-
-`load(path)` 可预览旧备份；`load(path, for_restore=True)` 必须验证所属目录、当前设备、元数据和内容摘要。恢复前仍备份当前状态。应用和恢复均等待系统稳定后重新读取，`WriteComparison` 包含 `lost`、`moved`、`changed`、`added`；`safe` 要求前三者为空，`identical` 还要求无新增项。
-
-**备份并不保证所有系统效果可逆。** App 资源库回填不能通过恢复撤销；Apple 未承诺该接口在所有系统和布局上兼容。整份替换也不构成经过验证的事务/掉电原子性保证。读取和写入之间没有系统 compare-and-swap，用户应避免同时在手机或其它工具中编辑。
-
-当前 Mac/iPhone 仅验证了读取与本地备份。下方实际写入结果是上游历史证据，不能作为本机写入兼容性证明。
-
-## 上游历史约定与验证记录
-
-**소유자:** layout-sync-engineer
-**구현:** `src/ipsm/backup.py`, `src/ipsm/iconstate.py` (쓰기 후 대조)
-**상태:** 실기기 항등 왕복 통과 (2026-08-19)
-
-편집 결과를 기기에 반영하는 층. 항등 왕복 시험이 통과했으므로 **diff·계획·제스처는
-필요 없다.** `layout-diff-planner` 는 폴백으로만 남아 있다.
-
-## 쓰기는 한 길로만 나간다
+## 单一写入入口
 
 ```python
-async def guarded_write(bridge, store: BackupStore, new_state: list, reason: str) -> Backup
+async def guarded_write(
+    bridge, store: BackupStore, new_state: list, reason: str,
+    *, expected_state: list | None = None,
+) -> Backup: ...
 ```
 
+```text
+设备归属 → 容器结构 → 读取当前状态 → 核对 expected_state → 条目完整性
+                                                        ↓
+       setIconState ← 重新读取并验证备份 ← 持久化布局与归属/完整性记录
+                       任一步失败：停止，不写手机
 ```
-현재 상태 읽기 → 백업 저장 → 백업 다시 읽어 대조 → (같을 때만) setIconState
-                     ↓ 실패                ↓ 다르면
-                  쓰지 않는다           쓰지 않는다
-```
 
-**백업이 실패하면 쓰지 않는다 (REQ-010).** 이 앱에서 안전성의 축은 "중단 안전성"이 아니라
-백업 무결성이다. `setIconState` 는 부분 수정이 아니라 전체 덮어쓰기이고, 직전 상태를 그대로
-다시 쓰면 완전히 복구된다. 그러므로 되돌릴 수 있는 백업이 있는지가 전부다.
+普通编辑必须传入读入时的 `document.origin`。手机端已有变化时停止，不合并或覆盖。普通编辑还检查叶项多重集及未知项/空占位位置，拒绝丢失、重复、原始内容改写和未知项位移。
 
-`DeviceBridge.set_icon_state` 를 다른 곳에서 직접 부르는 것은 이 계약 위반이다.
+设备桥的 `device_key` 必须有效并与备份存储绑定一致。上层直接调用 `DeviceBridge.set_icon_state` 违反契约；应用、诊断 CLI、实机验证脚本均受此约束。
 
-## 백업
+**备份失败不写入（REQ-010）。**备份完整性、原始数据保留、设备隔离、快照时效和写后比较共同提供保护。备份不是全部安全保证，也不能保证系统副作用完全可逆。
+
+## 备份
 
 ```python
 class BackupStore:
-    save(state, reason="auto") -> Backup    # 저장 후 다시 읽어 원본과 대조한다
-    list_backups() -> list[Backup]
-    latest() -> Backup | None
-    load(path) -> list
+    def __init__(self, root, device_key: str | None = None): ...
+    def bind_device(self, device_key: str) -> None: ...
+    def save(self, state, reason="auto") -> Backup: ...
+    def list_backups(self) -> list[Backup]: ...
+    def latest(self) -> Backup | None: ...
+    def load(self, path, *, for_restore: bool = False) -> list: ...
 ```
 
-- **이진 plist 로 저장한다.** XML plist 는 `iconModDate` 의 소수점 이하를 잘라내
-  저장-재읽기 대조가 정상적으로 실패한다 (2026-08-19 발견).
-- 저장 직후 다시 읽어 `deep_equal` 로 대조한다. 통과하지 못한 백업 파일은 지운다 —
-  되돌릴 수 없는 백업은 없느니만 못하다.
-- 파일 이름: `YYYYMMDD_HHMMSS_reason.plist`
+- 使用**二进制 plist**。上游 2026-08-19 发现 XML plist 会截掉 `iconModDate` 秒以下精度，导致备份与原始值比较正确地失败。
+- 保存后重新读取并对照原始值，**不使用忽略易变时间字段的 `deep_equal` 作为备份保真标准**。失败文件不作为有效备份展示。
+- 目录为 `backups/<device_key>/`。设备键是规范化 UDID 的 SHA-256；原始 UDID 不用于报告文件名。
+- 文件名使用 `YYYYMMDD_HHMMSS_<微秒>_<随机后缀>_<原因>.plist`，并生成可读 `.json` 与 `.meta.json`。原秒级命名已被替换，避免同一秒覆盖。
+- 临时文件完整写入并 `fsync` 后，在同目录发布且拒绝覆盖现有目标。文件权限 0600，目录权限 0700。元数据成功写入后才算完整备份。
+- 元数据记录格式版本、设备键、SHA-256 内容摘要、创建时间和原因。摘要用于发现损坏，不是对同一用户权限下恶意进程的数字签名。
+- `load(path)` 可预览旧文件；`load(path, for_restore=True)` 必须验证所属目录、当前设备、元数据和内容摘要，拒绝无归属旧文件、跨设备文件及损坏备份。读取同时限制文件大小和基本容器形状。
 
-## 쓰기 후 대조
+## 写后比较
 
 ```python
-def compare_after_write(before: list, after: list) -> WriteComparison
-    .lost      # 사라진 항목
-    .moved     # 자리가 달라진 항목
-    .appended  # 우리가 쓰지 않았는데 생긴 항목
-    .safe      # 손실도 이동도 없는가
-    .identical # 완전히 같은가
+def compare_after_write(before: list, after: list) -> WriteComparison: ...
+
+# WriteComparison 字段与属性：
+# lost       丢失条目
+# moved      意外位移
+# changed    同一条目的内容变化
+# added      请求中没有、返回结果中新出现的条目
+# safe       lost、moved、changed 均为空
+# identical  safe 为真且 added 为空
 ```
 
-판정 기준은 **"완전 동일"이 아니라 "손실·이동 없음"**이다 (2026-08-19 정정).
+旧文中的 `appended` 已按实际字段名修正为 `added`。未知项使用完整内容摘要，不能截短后比较；同 ID 条目也必须检查原始内容。比较可忽略已知易变时间字段，因此 `identical` 是该比较器下的一致性，不能宣传为未经任何归一化的逐字节相同。
 
-이유: iOS 는 `setIconState` 를 받은 뒤 **앱 라이브러리에만 있던 앱을 마지막 페이지 끝에
-되붙인다.** `setIconState` 에는 "설치됐지만 홈화면에 없음"을 표현할 방법이 없기 때문이다.
-이것은 우리 쪽 손실이 아니므로 `appended` 로 따로 세고, 실패로 보지 않는다.
+上游 2026-08-19 观察到，`setIconState` 可能将仅在 App 资源库中的应用放回最后一页，因此新增项单独报告，不作为丢失或意外移动。**恢复本身也是写入，不能撤销这一资源库回填副作用。**界面提前展示可能回填的应用名称并保留通用提示；安装清单为空不证明没有回填风险。
 
-**이 부작용만은 백업 복원으로 되돌아가지 않는다.** 복원도 쓰기이기 때문이다. 그래서
-적용 전에 어떤 앱이 붙을지 이름까지 대어 알린다 (ui-viewmodel 계약 참조).
-
-## 복원
+## 恢复
 
 ```python
-async def restore(bridge, store, backup_path) -> Backup
+async def restore(bridge, store, backup_path) -> Backup: ...
 ```
 
-복원도 쓰기다. 그러므로 복원 직전에도 현재 상태를 백업한다 — 잘못 고른 백업으로
-복원했을 때 되돌아갈 자리가 있어야 한다.
+恢复只接受当前设备的有效备份，先备份手机现状，再发送选定布局。用户可能选择了错误备份，因此恢复前状态同样必须可追溯。
 
-## 쓰기 후 정착 시간
+恢复是明确确认的独立恢复入口：**即使本次会话兼容性测试失败，也不因此禁用恢复。**普通编辑的“应用”仍要求本次会话 `write_verified` 为真。原样回写测试成功，或明确恢复成功且读回比较安全，均可建立或刷新此标记；加载或失败使标记失效。恢复不自动执行，不盲目连续重试；用户需了解它是另一轮完整写入及其系统副作用。
 
-되읽기까지 **1.5초** 기다린다 (`ui/worker.py: _SETTLE_SECONDS`). SpringBoard 가 배치를
-반영하는 데 잠깐 걸리고, 너무 짧으면 '아직 반영 안 된 상태'를 손실로 오해한다.
+## 重新读取前的等待
 
-## 하지 않기로 한 것
+界面工作线程在写后等待 **1.5 秒**，常量为 `ui/worker.py` 的 `_SETTLE_SECONDS`，再读取结果。目的是让 SpringBoard 完成布局更新，避免将尚未稳定的结果误报为损失。应用、兼容性测试和恢复均进行结果比较；这个等待值不是所有设备都能在该时限内完成的保证。
 
-- **깨진 iconState 로 기기의 반응을 시험하지 않는다.** 사용자의 실기기밖에 없고,
-  실패 모드를 알아내는 값보다 홈화면을 망가뜨릴 위험이 크다. `[의도적 미검증]`
-- 부분 쓰기·재시도 루프를 두지 않는다. 전체 덮어쓰기는 원자적이므로 중간 상태가 없다.
+## 安全边界与明确不做的事
+
+- 不故意向用户实机发送损坏 iconState 来探索失败模式；该项保持“有意未验证”。
+- 不实现部分布局写入、自动写入重试或自动恢复。
+- **不声称整份替换是事务，或在断线/掉电时必然全成全败。**接口调用粒度不能证明系统原子性。
+- 重新读取与写入之间没有系统级 compare-and-swap，仍存在短暂竞争窗口；用户应避免同时在手机或其它工具编辑。
+- 上游其它设备的成功、当前只读成功和模拟测试都不能代替本机真实写入兼容性验证。

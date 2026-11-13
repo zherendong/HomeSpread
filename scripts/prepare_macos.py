@@ -1,4 +1,4 @@
-"""Prepare icon, exact dependency notices, and corresponding source for .app."""
+"""为 macOS 应用准备图标、对应依赖的中文清单、许可原文和源码包。"""
 import json
 import zipfile
 from importlib.metadata import distribution
@@ -32,7 +32,7 @@ def main():
                     target = f"{name}-{version}-{len(copied)}.txt"
                     (licenses / target).write_bytes(source.read_bytes())
                     copied.append(target)
-        license_name = meta.get("License-Expression") or meta.get("License") or "See included license"
+        license_name = meta.get("License-Expression") or meta.get("License") or "详见附带许可原文"
         license_name = license_name.splitlines()[0][:120].replace("|", "/")
         home = meta.get("Home-page") or next(iter(meta.get_all("Project-URL") or []), "")
         rows.append(f"| {name} | {version} | {license_name} | {', '.join(copied) or home} |")
@@ -42,20 +42,23 @@ def main():
         "HomeSpread 修改版遵循 GPL-3.0-or-later，Qt/PySide6 还提供 LGPL/GPL/商业许可选项。\n\n"
         "| 组件 | 版本 | 许可 | 原文 |\n|---|---|---|---|\n" + "\n".join(rows) + "\n", encoding="utf-8")
     (OUT / "dependency-inventory.json").write_text(json.dumps(inventory, ensure_ascii=False, indent=2))
-    # Explicit allowlist: never include device layouts, caches, settings, logs,
-    # environment files, or credentials in a distributable source archive.
+    # 使用明确的源码与文档白名单，不把设备布局、缓存、设置、日志或凭据加入分发包。
     source_files = set()
     for folder in ("src", "tests", "scripts", "assets"):
         source_files.update(p for p in (ROOT / folder).rglob("*")
                             if p.is_file() and "__pycache__" not in p.parts)
-    for pattern in ("*.md", "*.spec", "*.command", "requirements*", "LICENSE"):
+    for pattern in ("*.md", "*.spec", "*.command", "*.bat", "*.ps1", "requirements*", "LICENSE", ".gitignore"):
         source_files.update(p for p in ROOT.glob(pattern) if p.is_file())
-    source_files.update((ROOT / "_workspace/02_contracts").glob("*.md"))
-    source_files.add(ROOT / "_workspace/04_macos-qa_final-report.md")
+    for folder in ("_workspace", ".claude"):
+        source_files.update((ROOT / folder).rglob("*.md"))
+    source_files.update((ROOT / "_workspace/screenshots").glob("*.png"))
+    source_files.update(p for p in (ROOT / "third_party_licenses").iterdir() if p.is_file())
+    source_files.update((ROOT / "packaging").glob("*.json"))
+    source_files.add(ROOT / ".github/FUNDING.yml")
     with zipfile.ZipFile(OUT / "HomeSpread-source.zip", "w", zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(source_files):
             archive.write(path, "HomeSpread/" + path.relative_to(ROOT).as_posix())
-    print(f"Prepared {len(rows)} dependency notices and {len(source_files)} source files")
+    print(f"已生成 {len(rows)} 个组件的许可说明和包含 {len(source_files)} 个文件的源码包")
 
 
 if __name__ == "__main__":

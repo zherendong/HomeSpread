@@ -1,262 +1,139 @@
-# HomeSpread (저장소 폴더 이름: iPhoneScreenManager)
+# HomeSpread（早期仓库目录名：iPhoneScreenManager）
 
-## 하네스: iPhone 홈화면 관리 데스크톱 앱
+## 开发协作：iPhone 主屏幕管理桌面应用
 
-**목표:** 여러 개로 늘어난 iPhone 홈화면 페이지를 PC 한 화면에 펼쳐 보고, 드래그로 편집한 결과를 안전하게 기기에 반영하는 Windows 앱을 만든다.
+**目标：** 在电脑的同一画面展开 iPhone 的多页主屏幕，通过拖放编辑，再将明确确认的结果应用到设备。当前交付目标是中文 macOS 移植版，保留上游 Windows 实现与历史资料。
 
-**트리거:** 이 프로젝트의 기획·설계·구현·검증 관련 작업 요청 시 `iphone-homescreen-orchestrator` 스킬을 사용하라. 후속 요청(재실행, 이어서 진행, 부분 수정, 피드백 반영)도 동일하다. 단순 질문이나 파일 한 개 조회는 직접 응답 가능.
+**触发条件：** 处理本项目的规划、设计、实现和验证任务时使用 `iphone-homescreen-orchestrator` 技能。继续工作、重新执行、局部修改和反馈修订同样适用。简单问题或单个文件查询可以直接处理。
 
-**핵심 제약:** 비탈옥 iPhone에도 홈화면 레이아웃을 **쓰는 경로가 있다** — `com.apple.springboardservices` 의 `setIconState`. 탈옥·개발자 모드·Xcode·WebDriverAgent 없이 USB + "신뢰"만으로 동작한다. 대신 **부분 수정이 아니라 전체 덮어쓰기**이므로, 우리가 해석하지 못한 요소(위젯 등)를 빠뜨리면 그대로 사라진다. 백업으로 완전히 되돌릴 수 있으므로 안전성의 축은 "중단 안전성"이 아니라 **"백업 무결성"과 "원본 보존"**이다. 판단이 갈릴 때는 "사용자의 홈화면이 위험해지는가"를 먼저 묻는다.
+**核心约束：** 非越狱 iPhone 存在布局写入路径：`com.apple.springboardservices` 的 `setIconState`。当前路径使用 USB、解锁和“信任”，不依赖越狱、开发者模式、Xcode 或 WebDriverAgent。它会**替换整份布局**；遗漏未知元素（小组件等）可能造成损失。安全要求包括原文保留、设备归属、写前状态检查、备份完整性和写后核对。**备份不保证完全回滚**：App 资源库回填无法通过恢复撤销，断线、系统版本差异和未知布局的行为也不能凭推测保证。发生设计分歧时，先检查是否会危及用户的主屏幕。
 
-**확인된 쓰기 동작(2026-08-19, iPhone 14 / iOS 26.1):** 항등 왕복 통과 — 309개 항목이 순서·폴더 내용·날짜까지 그대로 보존됐고 손실도 이동도 없었다. 단 하나의 부작용은 **앱 라이브러리에만 있던 앱을 iOS 가 마지막 페이지 끝에 되붙인다**는 것이다. `setIconState` 에는 "설치됐지만 홈화면에 없음"을 표현할 방법이 없고, 백업 복원도 쓰기이므로 이것만은 백업으로 되돌려지지 않는다. 사용자에게 미리 알려야 한다.
+## 中文 macOS 版的现行规则（2026-11-13）
 
-**폴더 구조 확인(2026-08-20):** 기기의 폴더 26개가 **예외 없이** `displayName` ·
-`iconLists` · `listType` 세 키만 가진다. 그래서 우리가 새 폴더를 지어내도 기기가 기대하는
-무언가를 빠뜨릴 자리가 없다 — 묶기 기능의 전제다. 이름을 바꿀 때도 `displayName` 한 키만
-갈아 끼우고 나머지 raw 는 그대로 싣는다.
+- 使用 Python、PySide6 和 `pymobiledevice3`；Apple Silicon `.app` 的最低系统版本为 macOS 14。macOS 连接服务为 `/var/run/usbmuxd`，Windows 历史路径为 `127.0.0.1:27015`。只使用 USB，多设备时不擅自选第一台，不自动回退 Wi-Fi。
+- 普通读取、获取图标和电脑内编辑不写手机。编辑应用前要求本次会话已有成功的真实写入及读回校验；正常流程是用户明确确认“原样写回校验”。读取新布局或操作失败后验证标记失效。
+- **恢复是独立确认的恢复通道。** 即使原样校验失败，仍可从当前设备的完整备份恢复。恢复前保存当前状态，恢复后重读核对；恢复结果安全时也会更新本会话的 `write_verified`，因此不能写成“只有原样校验能建立编辑许可”。不自动恢复或重复写入。
+- 所有写入经过 `backup.guarded_write`。普通编辑传入 `document.origin` 作为 `expected_state`，手机最新布局与其不同就停止。条目删除、复制、原始内容改变或未知元素被间接移动也会被拒绝。
+- 备份位于 `~/Library/Application Support/HomeSpread/backups/<设备指纹>/`，包含原始二进制 `.plist`、可读 `.json` 和校验用 `.meta.json`。归属、持久化或完整性检查失败就不写设备。旧版或外部文件可以预览，不能绕过设备归属检查用于恢复。
+- 日志和设置也位于用户的 Application Support 目录；图标位于 `~/Library/Caches/HomeSpread/`；新建配对缓存位于资料目录的 `pairing/`，不进入报告和分发包。完整设备标识不写入公开文档，日志脱敏不等于整份布局匿名化。
+- 默认简体中文，可切换 English 和韩语。窗口、确认框、诊断命令和用户文档须准确描述真实行为；内部日志与 API 名称不能为翻译而改变协议语义。
+- macOS 包含修改版对应源码、依赖清单和许可。上游源码链接不能代替本地修改源码。重建时重新生成随包文档和源码归档，避免旧产物与新代码不一致。
+- 本机已记录真机只读连接、布局读取和备份验证；没有执行真实布局写回或恢复。自动测试与上游 Windows 成功记录不能替代当前手机/iOS 的真实写入验证。具体结果见 `README.zh-CN.md`、`SECURITY_AUDIT.zh-CN.md` 和 `_workspace/04_macos-qa_final-report.md`。
 
-**편집 쓰기 확인(2026-08-20, 같은 기기):** 실제로 아이콘을 끌어 옮기고 두 번 적용했다.
-손실 0 · iOS 가 덧붙인 것 0. 두 번째 적용에서는 **보낸 plist 와 기기가 되돌려준 plist 가
-완전히 동일**했다 — 우리가 쓴 그대로 기기가 받았다는 뜻이다. 이로써 읽기부터 쓰기까지
-전 구간이 실기기에서 확인되었다.
+## 上游设计与验证记录（2026-08-19 至 2026-09-01）
 
-**빈 묶음은 iOS 가 지운다(2026-08-20 실기기 확인):** 빈 묶음 3개(`Cloud`·`생산성`·
-`유틸리티`)를 그대로 실어 보냈더니 iOS 가 셋 다 지웠고, 그 뒤에 있던 항목이 전부 한 칸씩
-밀렸다. 우리 검증기는 이것을 **"손실 3건 · 의도치 않은 이동 39건"** 으로 읽는다 — 실제로
-잃은 것은 없지만 사용자에게는 사고처럼 보인다. 그래서 **마지막 항목이 빠지는 순간 우리가
-먼저 묶음을 없앤다.** 보낸 것과 되읽은 것이 어긋나지 않아야 검증기의 경고가 진짜 사고를
-가리킬 수 있다.
+以下完整保留上游的设计依据与时间线。设备写入结果针对当时的 Windows 应用、iPhone 14 / iOS 26.1；商店、支付和许可流程描述的是当时调查和操作，不能作为当前服务政策或本次 Mac 写入验收的替代证据。
 
-**홈 페이지도 iPhone 처럼 민다(2026-08-20):** 묶음에서 하던 밀어내기를 홈화면에도
-그대로 쓴다. 다음 페이지에서 앱을 끌어와 꽉 찬 페이지의 **자리를 겨누면** 뒤가 한 칸씩
-밀리고, 넘친 마지막 앱이 다음 페이지 맨 앞으로 간다. 뒤 페이지도 차 있으면 계속 밀리고,
-끝에 이르면 페이지를 한 장 더 편다. 규칙은 `_plan_spill` **한 벌**이고, 홈화면과 묶음의
-차이는 `_page_family` 가 알려주는 칸 수·최대 장수뿐이다.
+**原样写回已验证（2026-08-19，iPhone 14 / iOS 26.1）：** 309 个条目的顺序、文件夹内容和日期都被保留，丢失和移动均为 0。发现的副作用是 **iOS 将仅在 App 资源库中的应用追加到最后一页**。`setIconState` 没有表达“已安装但不在主屏幕”的字段，恢复备份也会再次写入，因此不能撤销这个副作用。必须提前告诉用户。
 
-**묶음 안은 iPhone 처럼 민다(2026-08-20):** 꽉 찬 묶음 페이지의 자리를 겨눠 놓으면
-뒤가 한 칸씩 밀리고, 넘친 마지막 항목이 다음 페이지 **맨 앞**으로 간다. 반대로 페이지가
-다 비면 그 페이지를 없앤다. 빈 페이지도 빈 묶음과 같은 이유로 남겨서는 안 된다 — iOS 가
-지우면서 뒤가 밀리고, 우리 검증기는 그것을 손실·오이동으로 읽는다.
+**文件夹结构核验（2026-08-20）：** 当时设备上的 26 个文件夹全部只有 `displayName`、`iconLists`、`listType` 三个键。这是当时实现创建文件夹的依据，而不是所有未来 iOS 版本的结构保证。重命名只改变 `displayName`，其余 raw 字段原样保留。
 
-**준비물은 포트로 판단한다(2026-08-20):** iPhone 과 말을 주고받는 일은 Apple 이 만든
-구성요소가 맡고, 우리는 그것이 여는 `127.0.0.1:27015` 로 이야기한다. 그래서 **열려 있는가**
-하나가 진짜 답이다. 설치 폴더를 이름으로 찾는 것은 Apple 이 폴더를 바꾸면 틀리므로,
-"설치는 됐는데 안 떴다"와 "아예 없다"에 **할 말을 고르는 데만** 쓰고 길을 막는 데는
-쓰지 않는다. 시작 안내판이 이것을 3초마다 다시 보고 스스로 바뀐다.
+**编辑写入核验（2026-08-20，同一设备）：** 实际拖动图标后应用两次，丢失 0、iOS 新增 0。第二次发送的 plist 与设备读回的 plist 完全一致，证明当时环境的读取、编辑与写入流程能够贯通。
 
-**이름은 HomeSpread, 호환성은 부제로(2026-08-20, 이름은 2026-08-26 교체):** Apple
-상표 지침은 자기 제품 **이름 안에** `iOS`·`iPhone` 을 넣는 것을 금지하고, 호환성 표기는
-이름 **아래 부제**로만 허용한다. 스토어가 걸러내는 칸도 정확히 "앱 이름"이다. 그래서
-이름(`HomeSpread`)과 부제(`Mobile layout manager for iOS`)를 `product.py` 에서 갈라
-선언하고, 스토어의 이름 칸에는 `NAME` 만 넣는다. 코드가 이름을 직접 적으면 나중에 바꿀
-자리가 흩어지므로, 설명글을 뺀 어느 문자열에도 이름이 나타나지 못하게 시험이 막는다.
+**iOS 会删除空文件夹（2026-08-20 真机结果）：** 发送了三个空文件夹（Cloud、生产力、实用工具）后，iOS 删除了它们，并使后续条目依次前移。比较器报告“丢失 3 项、意外移动 39 项”；实际应用没有丢失，但提示看起来像事故。因此模型在最后一个条目移出时就删除空文件夹，使发送结果与系统会保留的结构一致，让核验警告指向真正异常。
 
-**이름은 우리가 정하는 것이 아니라 남는 것을 고르는 일이다(2026-08-26):** 처음 이름
-`HomeBoard` 는 Partner Center 에서 **이미 사용 중**이었다. 상표를 피하는 것만으로는 부족
-하고 **선점**도 통과해야 한다. 다음 이름을 고를 때는 먼저 웹에서 훑었다 — `PageDeck`
-(이커머스 SaaS) · `IconDesk`(인재관리 SaaS) · `Screenlay` · `Iconlay` · `Screenboard`
-(Mac 앱)는 전부 임자가 있었고, `HomeSpread` 만 비어 있었다. 이름 하나를 갈면 `NAME`
-한 줄로 끝나지 않는다 — `.spec` 파일 이름과 `name=`, `build_exe.bat`, `keep_data.py` 의
-`dist\` 경로, 저작권 줄, 문서, 그리고 **자료 폴더 이름**(`문서\HomeSpread\`)까지 따라간다.
-다만 `SOURCE_URL` 만은 앞질러 바꾸지 않는다 — 저장소를 옮기기 전에 새 주소를 적으면
-닿지 않는 주소가 되고, GPL 아래에서 닿지 않는 주소는 없는 주소와 같다.
+**主屏幕也支持连续挤移（2026-08-20）：** 将应用从下一页拖到已满页面的具体位置，后续条目顺移，溢出的最后一个应用进入下一页开头。后页也满时继续传递，必要时新增一页。主页与文件夹共享一套 `_plan_spill`，只由 `_page_family` 提供容量与最大页数差异。
 
-**후원은 아무것도 주지 않는다(2026-08-20):** Store 정책 10.8.2 는 **대가 없는** 자발적
-후원에만 외부 결제를 허용한다. 후원한 사람에게 기능을 더 주거나 광고를 없애 주는 순간
-Microsoft 인앱 결제 API 를 써야 한다. 우리 단추는 그래서 감사 인사 말고는 아무것도 주지
-않는다 — 이 선을 넘는 보상을 붙이려면 결제 경로부터 바꿔야 한다.
+**文件夹内的挤移和空页清理（2026-08-20）：** 把条目插到已满文件夹页的具体位置时，后续条目顺移，溢出项进入下一页开头。页面完全变空时删除该页。若保留空页，iOS 可能自行删除并推动后续项，使比较器误报丢失或移动；这与空文件夹的情况相同。
 
-**GPL 은 고른 것이 아니라 따라온 것이다(2026-08-20):** 기기와 말하는 일을
-`pymobiledevice3` 가 하는데 그것이 GPL-3.0-or-later 다. 함께 묶어 내보내는 순간 전체가
-GPL 이 되므로, HomeSpread 도 같은 라이선스로 공개한다. 실행 파일만 받은 사람도 원문을
-읽을 수 있어야 하므로 `LICENSE` 와 고지 목록을 **exe 안에** 싣고 정보 창이 꺼내 보여준다.
-남은 하나는 `product.SOURCE_URL` — GPL 은 소스에 닿을 길을 함께 주기를 요구한다.
-비어 있으면 정보 창이 "배포한 사람에게 요청하세요"라고만 말한다. 있지도 않은 주소를
-적어 두는 것보다 낫지만, **배포 전에는 반드시 채워야 한다.**
+**Windows 准备状态以端口判断（2026-08-20）：** 当时使用 Apple 组件提供的 `127.0.0.1:27015`。能否连接该端口是实际就绪依据；按安装目录猜测软件是否安装，只用于区分“已安装但尚未运行”与“没有安装”的提示，不用于阻止操作。启动指南每 3 秒刷新。这是 Windows 规则；macOS 检查本地 Unix socket。
 
-**방침은 코드가 하는 일과 같아야 한다(2026-08-20):** 스토어 정책 10.5.1 은 Win32
-제품에 **언제나** 개인정보 처리방침을 요구한다. 우리는 아무것도 수집하지 않으므로 쓸 말이
-적지만, 대신 **남기는 것**을 빠짐없이 적었다 — `backups/`·`logs/`·`cache/icons/`·
-`settings.json`, `127.0.0.1:27015`, 앞 4글자만 남는 UDID, 눌렀을 때만 열리는 후원 창구와
-Store. 방침이 코드와 어긋나면 그것은 곧 거짓말이므로, 시험이 방침 원문에서 이 이름들을
-찾고 `settings_path()` 와 대조한다. 원문은 exe 안에도 실어 정보 창에서 읽는다 — 인터넷
-없이 도는 프로그램의 방침을 인터넷에서만 읽게 할 수는 없다.
+**产品名与兼容性副标题分开（2026-08-20，2026-08-26 改名）：** 上游依据当时查阅的 Apple 商标说明，将产品名 HomeSpread 与兼容性副标题 `Mobile layout manager for iOS` 分别放在 `product.py` 中，商店名称只使用 `NAME`。不在自己的产品名中嵌入 `iOS` 或 `iPhone`。代码直接写名称会产生多个修改点，因此测试禁止说明文字之外的名称重复声明。
 
-**스토어에 GPL 을 올리는 길은 열려 있다(2026-08-20):** 개발자 계약은 개발자가 자기
-라이선스 약관을 대신 제출하는 것을 허용하고, **FOSS 가 요구하는 범위에서** 표준 약관의
-역공학·복제·재배포 금지를 넘어서도록 명시적으로 허락한다. VLC 가 그 길로 올라가 있다.
-남은 관문은 라이선스가 아니라 **포장**이다 — MSIX 는 exe 옆에 쓰는 것을 가상화하므로,
-`paths.data_root()` 가 가리키는 자리에 백업이 그대로 남는지 실제 패키지로 확인해야 한다.
-사용자가 찾을 수 없는 곳에 백업이 숨는 것이 가장 나쁜 결말이다.
+**名称还受注册占用限制（2026-08-26）：** 初始名称 `HomeBoard` 在 Partner Center 已被使用。上游查询了 `PageDeck`（电商 SaaS）、`IconDesk`（人才管理 SaaS）、`Screenlay`、`Iconlay`、`Screenboard`（Mac 应用），当时只有 HomeSpread 未找到占用。改名除 `NAME` 外，还涉及 `.spec` 文件名与 `name=`、`build_exe.bat`、`keep_data.py` 的 `dist\` 路径、版权行、文档和资料目录（文档\HomeSpread\）。`SOURCE_URL` 必须在仓库实际迁移后修改，不能先指向尚不存在的地址。
 
-**포장해서 확인했다(2026-08-26):** 서명 없는 `.msix` 를 만들어 실제로
-`C:\Program Files\WindowsApps\` 에 설치했다. 그 폴더는 쓸 수 없었고, 앱은
-`문서\HomeSpread\` 에 `backups\`·`logs\` 를 만들었으며 아이콘 캐시는 `%TEMP%` 에
-그대로 있었다. `127.0.0.1:27015` 도 열렸다 — `Windows.FullTrustApplication` 은
-AppContainer 밖에서 돌기 때문이다. **서명 없이 설치하는 길**은 인증서를 만들어 신뢰
-저장소에 넣는 것이 아니라, 시험용 신원의 `Publisher` 뒤에 Windows 가 정해 둔 **서명되지
-않은 네임스페이스** 표시를 붙이고 `-AllowUnsigned` 로 넣는 것이다. 그 표시는
-`identity.dev.json` 에만 두고 스토어용 신원에는 붙이지 않는다.
+**赞助不提供额外权益（2026-08-20）：** 上游按当时 Store 政策 10.8.2 的调查，把外部支付限定为无对价的自愿赞助。如果赞助后获得功能或去除广告，需要重新处理 Microsoft 应用内支付要求。现有按钮不提供功能奖励。
 
-**허용 목록은 경로를 기억하고, 경로는 판마다 바뀐다(2026-08-26):** 제어된 폴더
-액세스의 허용 목록은 **exe 경로 단위**다. MSIX 설치 경로에는 판 번호가 들어가므로
-(`...HomeSpread_1.0.19.0_x64__cx182f...`) 판을 올리면 허용이 풀리고 사용자는 다시
-허용해야 한다. 우리가 코드로 고칠 수 있는 것이 아니다 — 그래서 고치는 대신 **적어
-둔다.** 오류 문구가 이 벽을 이름으로 짚는 것이 우리가 할 수 있는 전부다.
+**采用 GPL-3.0-or-later（2026-08-20）：** 设备通信库 `pymobiledevice3` 采用该许可，HomeSpread 也以 GPL-3.0-or-later 发布。为了使只拿到程序的人也能阅读许可，Windows 包内包含 `LICENSE` 和第三方告知，由“关于”窗口显示。上游还通过 `product.SOURCE_URL` 提供源码入口；无地址时仅显示向分发者索取源码的提示。可分发版本应提供真实可达的对应源码，当前 Mac 修改版还在包内提供本次源码归档。
 
-**시작 시간은 포장이 정한다(2026-08-21):** 단일 exe 는 실행할 때마다 자기 안 72MB 를
-임시 폴더에 푼다. 그 시간이 **매번** 붙는다 — 실측 21초 중 16.5초가 그것이고, 그 구간에는
-우리 파이썬 코드가 시작조차 하지 않아 Qt 로는 아무것도 띄울 수 없다. 폴더로 내면 풀 것이
-없어 **2.3초**다. 대가는 건네줄 것이 파일 하나가 아니라 폴더 하나가 되는 것과 펼친 크기
-72MB → 169MB. 남은 몇 초는 부트로더가 띄우는 시작 그림이 채운다(0.3초). 그림은 Tk 로
-그려지므로 `tkinter` 를 제외 목록에 되돌리면 조용히 사라진다. 스토어에 올릴 MSIX 도 이
-모양을 요구하므로 되돌릴 이유가 없고, 되돌아가면 시험이 막는다.
+**隐私说明必须符合实际行为（2026-08-20）：** 当时上游根据 Store 政策 10.5.1 为 Win32 产品提供隐私说明。没有自动上传不等于没有本地数据，说明必须列出 `backups/`、`logs/`、`cache/icons/`、`settings.json`、`127.0.0.1:27015`、只保留前四字符的 UDID，以及用户点击后才打开的赞助和 Store 页面。测试将原文与 `settings_path()` 等实现核对，说明也随 exe 分发，可离线阅读。当前 Mac 的目录、连接服务与配对缓存见中文隐私说明。
 
-**소스 공개는 GPL 의 의무이자 스토어의 준비물이다(2026-08-21):** 저장소 주소 하나가
-세 자리를 동시에 채운다 — `product.SOURCE_URL`(GPL 이 요구하는 소스에 닿을 길),
-Partner Center 의 개인정보 처리방침 URL(`PRIVACY.md`), 그리고 배포본을 두는 자리.
-대신 올려서는 안 되는 것이 있다: `logs/`·`backups/`·`cache/` 는 전부 **실기기에서 나온
-사용자 자료**다. `.gitignore` 가 이 셋과 `dist*/`·`build*/`·`settings.json` 을 막는다.
+**GPL 与 Store 的分发路径（2026-08-20 调查）：** 上游当时查阅的开发者协议允许提交自己的许可，并允许在 FOSS 所需范围内优先适用相关复制、修改和再分发权利，VLC 是其参考案例。后续需要验证的是 MSIX 打包后的行为：安装位置的写入可能被虚拟化，必须确认 `paths.data_root()` 指向用户能够找到、并实际保留备份的位置。
 
-**편집 규칙 전부가 실기기에서 섰다(2026-08-21, iPhone 14 / iOS 26.1):** 그동안
-`[미검증]` 이던 묶기·이름 바꾸기·묶음 페이지 늘어남·묶음 밀어내기·홈 밀어내기·빈 자리
-치우기를 **기기의 진짜 배치 위에서** 확인했다 — 홈 2장에 폴더 35개가 놓이고 앱 284개는
-대부분 폴더 안에 있는, 우리가 지어낼 수 없는 모양이다. 검사 15건 전부 통과. 편집 4단계마다
-앱 284개가 그대로였고 빈 자리는 0이었으며, 21번 취소하자 원본과 완전히 같아졌다. 마지막
-한 가지 — **우리가 지어낸 묶음을 기기가 받는가** — 는 읽기로 알 수 없어 실제로 보냈고,
-보낸 plist 와 되읽은 plist 가 **완전히 동일**했다. 되돌리기도 정확했다.
+**MSIX 实际安装验证（2026-08-26）：** 上游创建未签名 `.msix` 并安装到 `C:\Program Files\WindowsApps\`，确认该目录不可写；应用改在“文档\HomeSpread\”生成 `backups\` 和 `logs\`，图标仍保存在 `%TEMP%`。`127.0.0.1:27015` 可用，因为该包使用 `Windows.FullTrustApplication`，不在 AppContainer 内。测试安装没有向信任库添加自签证书，而是在开发身份的 `Publisher` 后附 Windows 未签名命名空间标记，使用 `-AllowUnsigned`。标记只放在 `identity.dev.json`，没有写入商店身份。
 
-**부작용은 사라진 것이 아니라 조건부다(2026-08-21):** 이번 두 번의 쓰기에서 iOS 가
-되붙인 앱은 0개였다. 앱 라이브러리에만 있던 앱이 **0개**였기 때문이다(8월 19일에 한 번
-되붙여진 뒤의 상태). 즉 되붙이기는 **미배치 앱이 있을 때만** 나타난다.
+**允许列表按路径保存，而路径随版本变化（2026-08-26）：** Windows“受控文件夹访问”的允许项绑定 exe 路径。MSIX 路径带版本号，如 `...HomeSpread_1.0.19.0_x64__cx182f...`，升级可能需要重新允许。应用不能靠自身代码改变该系统规则，因此错误提示须明确指出此原因。
 
-**기본 앱도 되붙는다 — 실제로 그랬다(2026-08-21):** 8월 19일 백업 두 개를 맞대어 보니
-iOS 가 되붙인 4개 중 하나가 Apple 기본 앱 **돋보기**(`com.apple.Magnifier`)였다. 기본 앱도
-앱 라이브러리로 치울 수 있으니 당연한 일인데, `application_type="User"` 만 묻던 우리는
-그것을 예고하지 못했다. 그렇다고 기본 앱을 다 셀 수는 없다 — 이 기기의 기본 앱 232개 중
-**190개는 홈화면에 결코 뜨지 않는다**. 그대로 세면 틀린 경고를 190번 하게 된다.
-거르는 근거는 넷이다: `SBAppTags` 의 `hidden`(184개, 화면 없는 내부 구성요소), 아이콘 없음
-(1개), `SBIconVisibilitySetByAppPreference`(4개 — 앱이 자기 표시 여부를 스스로 정한다),
-`LSSupportedRegions` 밖(1개 — News 는 US·GB·AU·CA 전용). 남는 40개가 진짜 후보이고,
-이 기준으로 센 미배치 기본 앱은 **0개**로 그날 실제 되붙은 0개와 일치한다. 지역은
-로케일(`ko_KR`)에서만 얻는다 — `RegionInfo`(`KH/A`)는 Apple 의 부품 코드라 ISO 국가 코드가
-아니다(ISO 로 `KH` 는 캄보디아다). **지역을 못 읽으면 지역 조건만 접는다** — 모른다고
-빠뜨리면 사용자가 놀라고, 한 번 더 경고하면 안 붙을 뿐이다.
+**Windows 启动时间受打包方式影响（2026-08-21）：** 单文件 exe 每次需将内部约 72MB 解压到临时目录；21 秒实测启动中，16.5 秒用于解压，此时 Python 尚未启动，Qt 也无法显示窗口。改为文件夹分发后实测约 2.3 秒，代价是分发一整个目录，展开体积由 72MB 增至 169MB。剩余等待由约 0.3 秒出现的 bootloader 启动画面覆盖。该画面依赖 Tk，Windows spec 不能将 `tkinter` 排除；MSIX 也使用目录形式。这些数字和 Tk 启动画面只属于当时 Windows 包，Mac spec 不使用该启动图。
 
-**시나리오를 건너뛴 것은 통과가 아니다(2026-08-21):** 첫 실행에서 밀어내기 두 가지가
-"재료가 없다"며 건너뛰어졌다. 검증기가 홈화면 위의 낱개 앱만 재료로 찾았는데, 이 기기는
-앱이 대부분 폴더 안에 있었기 때문이다. 건너뜀을 통과 옆에 나란히 적어 두면 다음 사람은
-확인된 것으로 읽는다. 그래서 재료를 묶음 안까지 넓혀 다시 돌렸고, 검증기는 건너뜀을
-통과와 다른 표시로 세어 마지막 줄에 따로 알린다.
+**源码公开与商店资料（2026-08-21）：** 上游仓库地址同时用于 `product.SOURCE_URL`、Partner Center 的 `PRIVACY.md` URL 和分发入口。`logs/`、`backups/`、`cache/` 是实际设备数据，不能上传；`.gitignore` 同时排除这些目录、`dist*/`、`build*/` 和 `settings.json`。
 
-**자료의 자리는 수명이 정한다(2026-08-21):** `backups/` 는 되돌릴 유일한 길이고
-`logs/` 는 사고 뒤에 묻는 자리다. 둘 다 **잃으면 안 된다.** 반면 아이콘은 다시 받으면
-그만이다(287개에 7.4초). 그래서 갈랐다 — 아이콘만 Windows 임시 폴더로 보내고, 백업과
-로그는 보내지 않는다. TEMP 에 백업을 두는 것은 **지우는 일을 OS 에 위임하는 것**이고,
-이 PC 에서 저장 공간 센스는 이미 켜져 있다(임시 파일 정리 포함). 사라진 백업은
-사라졌다는 말조차 남기지 않는다.
+**编辑规则的真机验证（2026-08-21，iPhone 14 / iOS 26.1）：** 上游使用真实布局验证创建与重命名文件夹、文件夹增页、文件夹挤移、主屏幕挤移和清理空位。该布局有 2 个主页、35 个文件夹，284 个应用大多在文件夹内。15 项检查全部通过：4 个编辑阶段后仍保留 284 个应用，空位数为 0，撤销 21 次后与原文完全一致。为了验证新建文件夹能否被设备接受，上游还执行了最小编辑写入；发送和读回的 plist 完全一致，随后恢复的布局也一致。这是该设备上的历史结果，不是普遍回滚保证。
 
-**Store 로 설치하면 exe 옆에 쓸 수 없다(2026-08-21 확인):** `C:\Program Files\WindowsApps\`
-는 소유자가 `NT AUTHORITY\SYSTEM` 이라 **관리자 권한으로도** 쓸 수 없다.
-그러니 그때는 `data_root()` 가 **문서 폴더**로 간다. `%LOCALAPPDATA%` 는 답이 아니다 —
-포장된 앱에서는 `Packages\...\LocalCache\` 로 조용히 옮겨져 정확히 "사용자가 찾을 수
-없는 곳"이 된다. 문서 폴더 경로는 `SHGetKnownFolderPath` 로 묻는다: 이 PC 의 문서 폴더는
-`D:\Personal\Documents` 라, `%USERPROFILE%\Documents` 로 지어내면 아무도 보지 않는 빈
-폴더가 생긴다. 포장 여부는 `GetCurrentPackageFamilyName` 으로 묻되 **`is_frozen()` 과
-함께** 묻는다 — 개발용 파이썬이 Store 판이라 소스로 돌려도 패키지 신원이 잡히고, 그것만
-보면 개발 중에 자료가 프로젝트 밖으로 흩어진다. 그리고 포장된 설치에서는 "프로그램을
-옮겨 주세요"가 **막다른 길**이므로 그때만 다른 안내를 한다.
+**没有新增不代表副作用消失（2026-08-21）：** 当天两次写入没有回填应用，因为当时只有 App 资源库中存在的应用数为 0，布局已在 8 月 19 日经历过一次回填。回填是存在未布局应用时可能发生的系统行为。
 
-**후원 창구는 받는 사람의 나라가 정한다(2026-08-28):** PayPal 후원 단추는 열리지
-않았다 — `Donations aren't supported in this organization's country`. 두 겹이었다:
-후원 상품은 **비즈니스 계정**을 요구하고, 그와 별개로 **한국에 등록된 계정**은 후원을
-받을 수 없다. 비즈니스로 올려도 두 번째 벽은 그대로라 그 길은 막혀 있다. Buy Me a
-Coffee 도 한국 정산을 하지 않고, Ko-fi 는 PayPal·Stripe 로 내보내므로 같은 벽을 물려
-받는다. 열린 것은 **GitHub Sponsors** 였다 — Stripe **Connect Express** 를 쓰는데
-그쪽은 단독 Stripe 가입과 달리 한국을 받아 준다. 실제로 열어 `Active` 까지 확인했다.
-대가는 하나 — **후원하려면 GitHub 계정이 필요하다.** 페이지는 로그아웃 상태에서도
-열리지만 후원 단계에서 로그인을 요구한다. 우리 사용자는 개발자가 아닐 수 있으므로,
-단추 이름에 `GitHub` 을 적어 **누르기 전에** 알린다.
+**系统应用也可能回填（2026-08-21）：** 对照 8 月 19 日两份备份发现，追加的 4 个应用中有 Apple 的“放大器”（`com.apple.Magnifier`）。只查询 `application_type="User"` 会漏报它。但也不能把系统应用全部算入：当时设备有 232 个系统应用，其中 190 个不应出现在主屏幕。筛选依据包括 `SBAppTags` 的 `hidden`（184 个无界面内部组件）、没有图标（1 个）、`SBIconVisibilitySetByAppPreference`（4 个自行决定可见性的应用）和不在 `LSSupportedRegions` 内（1 个，News 当时限定 US/GB/AU/CA）。剩下 40 个候选，未布局数为 0，与当天实际回填 0 个相符。地区从 locale（如 `ko_KR`）获得；`RegionInfo` 的 `KH/A` 是 Apple 部件地区码，不是 ISO 国家代码，ISO 的 `KH` 表示柬埔寨。无法读取地区时，只取消地区过滤，避免无依据漏报。
 
-**그림 한 장이 무엇 위에서 도는지 말해야 한다(2026-08-29 거절, 08-31 고침):**
-1.0.22 가 `10.1.1 Inaccurate Representation` 으로 거절됐다 — "제출된 그림에 Windows 가
-아닌 UI 나 기기가 보인다". 여덟 장 중 여섯 장이 화면의 거의 전부를 **Apple 의 진짜
-아이콘**으로 채웠고, `window.grab()` 이 창테두리를 잘라내 **Windows 임을 말해 주는 것이
-그림 안에 하나도 없었다.** 지적되지 않았지만 11.2(메타데이터는 개발자가 만들었거나
-허락받은 것이어야 한다)도 함께 걸려 있었다. 그래서 배치·이름·아이콘을 전부 우리가
-짓고(`com.homespread.demo.*` + 직접 그린 타일 43개), 창을 **제목 표시줄째로** 찍고,
-설명 끝에 비제휴 문구를 붙였다. 덤으로 시연 그림이 기기·백업·아이콘 캐시에서 풀려나
-저장소만으로 다시 만들어진다. **고친 것이 전부 메타데이터라 패키지는 그대로다.**
+**跳过场景不算通过（2026-08-21）：** 首次运行的两项挤移场景因“没有合适对象”被跳过。验证脚本只在主页找独立应用，而该设备的大部分应用位于文件夹内。上游扩大到文件夹内部寻找对象后重新验证，并在最终报告中把跳过与通过分别计数。
 
-**화면을 잘라 오는 일은 그 자리에 있는 것을 가져온다(2026-08-31):** 창테두리를 얻으려
-`grabWindow` 로 바꾼 첫 실행에서 우리 창이 앞에 서지 못해 **사용자의 다른 창들**이 여덟
-장에 그대로 담겼다. 스토어 그림은 영구히 공개되고 내려도 색인에 남으므로 이런 그림은
-되돌릴 수 없는 유출이다. 지금은 창을 맨 위에 세우고, 잘라 온 것의 창 속을
-`window.grab()` 이 그린 것과 견주어 다르면 **저장하지 않고 멈춘다.** 확인 없이 저장하는
-자리로는 돌아가지 않는다 — 시험이 막는다.
+**保存位置取决于数据用途（2026-08-21）：** 备份用于恢复，日志用于事后诊断，二者都需要保留。图标可以重新下载，当时 287 个图标耗时 7.4 秒，因此只有图标进入 Windows 临时目录。上游测试电脑启用了包括临时文件清理的 Storage Sense；把备份放入 TEMP 会让系统清理机制删除恢复点。
 
-**올라갔다 — 그리고 올라간 것이 무엇인지는 스토어에게 물어야 안다(2026-09-01):**
-다시 낸 1.0.22 가 통과해 `apps.microsoft.com/detail/9NT54QJ7XQNL` 에 공개됐다. 패키지는
-손대지 않았다. 그런데 **Partner Center 의 미리보기 조각으로는 옛 그림과 새 그림이
-구별되지 않는다** — 둘 다 어두운 바탕에 색 타일이 깔린 작은 사각형으로 보인다. 실제로
-한 번 잘못 읽었다. 답은 공개된 목록을 그대로 받아 보는 것이었다:
-`displaycatalog.mp.microsoft.com/v7.0/products/<StoreID>` 가 두 언어의 설명문 원문과
-그림 크기를 준다. 그림은 **1760x911 네 장씩** — 창테두리를 포함한 새 것이 맞았고,
-설명문은 두 언어 모두 `확인된 환경` / `Verified on` 에서 끝나 **비제휴 문구가 빠져
-있었다.** 거절을 부른 것은 고쳐졌고 덧붙이려던 방패 하나가 빠진 셈이다. 넣으려면
-메타데이터만 바꾸는 새 제출이면 되고, 공개된 판은 그동안 그대로 서 있는다.
+**Store 安装目录不能用于资料写入（2026-08-21）：** 上游测试中 `C:\Program Files\WindowsApps\` 由 `NT AUTHORITY\SYSTEM` 所有，以管理员权限也不能直接写入。因此打包安装时 `data_root()` 转向真实文档目录。上游没有选 `%LOCALAPPDATA%`，因为包内可能被重定向到 `Packages\...\LocalCache\`，用户不容易找到。文档目录用 `SHGetKnownFolderPath` 查询；当时测试机实际目录为 `D:\Personal\Documents`，拼接 `%USERPROFILE%\Documents` 会落到错误位置。包身份用 `GetCurrentPackageFamilyName` 查询，并同时要求 `is_frozen()`，否则 Microsoft Store 版开发 Python 即使运行源码也可能带包身份，造成开发资料位置意外变化。对商店安装用户不能再提示“移动程序目录”，应给出适用的权限说明。
 
-**변경 이력:**
-| 날짜 | 변경 내용 | 대상 | 사유 |
-|------|----------|------|------|
-| 2026-08-19 | 초기 구성 (에이전트 7 + 스킬 8) | 전체 | - |
-| 2026-08-19 | 핵심 제약 정정 — 쓰기 API 존재 확인 | CLAUDE.md, 스킬 다수 | Phase 1a 조사에서 `setIconState` 확인. 제스처 재생 전제가 무효화됨 |
-| 2026-08-19 | `layout-diff-planner` 를 폴백으로 강등 (삭제하지 않음) | skills/layout-diff-planner | 항등 왕복 시험 실패 시 되돌아갈 경로로 보존 |
-| 2026-08-19 | 항목 정체성 키 정정 — `bundleIdentifier` → `displayIdentifier` | skills/homescreen-layout-model, src/ipsm/iconstate.py | 실기기 첫 덤프에서 79개(26%)가 Unknown 으로 분류됨. 오프로드된 앱에는 번들 ID가 없다 |
-| 2026-08-19 | 백업을 이진 plist 로 저장 | src/ipsm/backup.py, logging_setup.py | XML plist 가 `iconModDate` 의 소수점 이하를 잘라내 백업 무결성 검사가 정상 차단됨 |
-| 2026-08-19 | **항등 왕복 시험 통과 (REQ-003)** — 편집 기능 착수 가능 | 실기기 검증 | 309개 항목 손실·이동 0. 판정 기준을 "완전 동일"에서 "손실·이동 없음"으로 정정 |
-| 2026-08-20 | ADR-001 스택 확정 (PySide6) + 편집 UI 구현 | src/ipsm/ui/, app.py, run_app.bat | UI 와 기기 층이 같은 파이썬 객체를 쓰면 우리가 모르는 필드가 직렬화 경계에서 떨어질 자리가 없다 |
-| 2026-08-20 | 미배치 앱 예고 — 설치 목록 조회 추가 | device.list_installed_apps, layout.unplaced_apps | iOS 가 끝에 되붙이는 부작용을 적용 전에 이름까지 대어 알리기 위해 |
-| 2026-08-20 | 계약 4종 + 화면 설계 문서 작성 | _workspace/02_contracts/, 02_ui-engineer_screen-spec.md | 구현이 앞서 나가 계약이 비어 있었다. 실제 경계면을 코드에서 뽑아 기록 |
-| 2026-08-20 | 아이콘 수집 실기기 확인 | cache/icons/ | 287개 요청 → 287개 성공, 7.4초. 실패 0 |
-| 2026-08-20 | **편집→쓰기 전 구간 실기기 통과** | 실기기 검증 | 두 번 적용. 손실 0 · iOS 추가 0. 2차는 보낸 것과 되읽은 것이 완전 동일 |
-| 2026-08-20 | 도구모음 글씨가 안 보이던 것 수정 | ui/main_window.py STYLE | 배경만 어둡게 칠하고 QToolButton 글자색을 두지 않아 Windows 기본 검정이 그대로 얹혔다 |
-| 2026-08-20 | 단일 exe 배포 (PyInstaller) | iPhoneScreenManager.spec, src/ipsm/paths.py | 파이썬 없는 PC 에서도 실행. 자료는 exe 옆 폴더에 만든다 — `_MEIPASS` 는 종료 시 지워져 백업이 남지 않는다 |
-| 2026-08-20 | 묶기(폴더 만들기) · 묶음 이름 바꾸기 추가 | layout.py, ui/tiles.py, ui/canvas.py, ui/main_window.py | 기기의 폴더 26개가 전부 `displayName`·`iconLists`·`listType` 세 키뿐임을 확인하고 나서야 새 폴더를 지어냈다. 이름 변경은 `renamed_to` 로만 두고 raw 는 건드리지 않는다 |
-| 2026-08-20 | 이름 바꾸기 창의 입력칸이 흰 바탕에 흰 글씨였던 것 수정 | ui/main_window.py STYLE, tests/test_core.py | `QWidget { color }` 로 글자만 밝게 칠하고 `QLineEdit` 바탕을 두지 않았다. 도구모음 때와 같은 실수의 반대 방향이라, 이번엔 실제로 그려서 밝기 차를 재는 회귀 시험을 붙였다 |
-| 2026-08-20 | 묶음이 꽉 차면 페이지를 펴고, 다 비면 묶음을 없앤다 | layout.py MoveCommand·move·changes, ui/tiles.py | 실기기 적용에서 빈 묶음 3개를 iOS 가 지워 '손실 3건 · 의도치 않은 이동 39건' 경고가 났다. 원인은 우리가 빈 묶음을 실어 보낸 것. 둘 다 드래그 1회 = 취소 1회 안에 넣었다 |
-| 2026-08-20 | 꽉 찬 묶음 페이지에 끼우면 뒤로 밀어낸다 (SpillCommand) | layout.py SpillCommand·_plan_spill·can_move | 2페이지 앱을 꽉 찬 1페이지로 끌어도 아무 일도 일어나지 않았다 — can_move 가 '가득 참'으로 막고 옆 페이지로 되돌려보냈다. iPhone 은 이 자리에서 마지막 항목을 다음 페이지로 민다 |
-| 2026-08-20 | 묶음 안의 빈 페이지도 없앤다 | layout.py MoveCommand.pruned | 빈 묶음과 같은 이유. 페이지째 남기면 iOS 가 지우면서 뒤가 밀린다 |
-| 2026-08-20 | 홈 페이지 밀어내기 + 빈 홈 페이지 치우기 | layout.py `_page_family`·`_spill_room`·`_plan_spill`·`_drop_pages`, ui/tiles.py | 묶음에서만 되던 것을 홈화면에도. 규칙을 두 벌로 적지 않으려고 '페이지 무리'로 합쳤다. `can_move` 가 겨눈 자리(`dst_index`)를 받아야 화면과 모델의 판단이 어긋나지 않는다 |
-| 2026-08-20 | 설정에서 언어를 고른다 (한국어·English) | src/ipsm/i18n.py, translations_en.py, ui/main_window.py SettingsDialog·retranslate, app.py | 원문이 곧 열쇠라 번역이 빠져도 앱이 말을 잃지 않는다. 로그는 번역하지 않는다 — 언어가 섞이면 같은 사건을 검색으로 모을 수 없다. 빠뜨린 문구는 소스를 읽는 시험이 잡는다 |
-| 2026-08-20 | 시작 안내판 — 준비물을 스스로 보고 Store 로 데려간다 | src/ipsm/apple_devices.py, ui/guide.py, ui/main_window.py `_show_guide` | 준비물이 없다는 사실이 '기기에서 읽기'를 누른 뒤의 오류 상자에서야 드러났다. 판단 근거는 **27015 가 열려 있는가** 하나이고, 설치 폴더는 할 말을 고르는 짐작일 뿐 막는 데 쓰지 않는다 — 이름으로 찾는 짐작이 틀렸을 때 길을 막으면 안 된다 |
-| 2026-08-20 | 언어 목록을 펼쳤을 때 흰 바탕에 흰 글씨이던 것 수정 | ui/main_window.py STYLE `QComboBox`·`QComboBox QAbstractItemView`, tests/test_core.py | 같은 실수의 세 번째 얼굴. 펼쳐지는 목록은 QComboBox 가 아니라 그 안의 다른 위젯이라 칸만 칠하면 목록은 Windows 기본 흰 바탕으로 남는다. 접힌 칸만 보고는 알 수 없어 실제로 펼쳐서 밝기 차를 재는 시험을 붙였다 |
-| 2026-08-20 | **버전 1.0** — 선언 한 곳 + 창 제목 + 빌드마다 패치 증가 | src/ipsm/version.py, scripts/bump_build.py, build_exe.bat | 전역 규칙(2026-08-09)의 `shared_vars.h` 자리를 파이썬에서는 version.py 가 맡는다. 화면의 번호로 낡은 exe 를 가려낸다 |
-| 2026-08-20 | 이름을 **HomeBoard** 로 — 이름과 부제를 나눠 선언 | src/ipsm/product.py(신규), version.py, app.py, device.py, ui/main_window.py, HomeBoard.spec, build_exe.bat, README.md | Apple 상표 지침은 제품 **이름 안에** `iOS`·`iPhone` 을 넣는 것을 금지하고 호환성 표기는 **부제**로만 허용한다. 스토어 심사가 보는 칸도 이름 칸이라, 이름(`NAME`)과 부제(`TAGLINE`)를 갈라 두고 코드가 이름을 직접 적지 못하게 시험으로 막았다 |
-| 2026-08-20 | 설정 창에 PayPal 후원 단추 | src/ipsm/product.py `donate_url`, ui/main_window.py SettingsDialog·`_donate`, translations_en.py | Store 정책 10.8.2 는 **대가 없는** 후원에만 외부 결제를 허용한다 — 후원 대가로 기능을 주는 순간 Microsoft 인앱 결제로 넘어가야 하므로 이 단추는 아무것도 주지 않는다. 주소는 `product` 가 짓는다(계정이 바뀔 때 고칠 자리 하나 + 창 없이 시험 가능). `no_recurring=1` 로 정기 결제를 접어 둔다 |
-| 2026-08-20 | **GPL-3.0-or-later 로 공개** — 라이선스 원문·고지 목록·정보 창 | LICENSE, THIRD-PARTY-NOTICES.md, third_party_licenses/, scripts/gen_notices.py, src/ipsm/ui/about.py, paths.bundled, HomeBoard.spec datas | 소스를 공개하기로 했으므로 `pymobiledevice3` 의 GPL 이 걸림돌이 아니라 그냥 우리 라이선스가 된다. 고지 목록은 손으로 적지 않는다 — `pip install` 한 번에 낡고, 낡은 고지는 고지하지 않은 것과 같다 |
-| 2026-08-20 | 개인정보 처리방침 — 쓰고, exe 에 싣고, 정보 창에서 읽는다 | PRIVACY.md, ui/about.py, HomeBoard.spec, tests/test_core.py | 정책 10.5.1 이 Win32 제품에 언제나 요구한다. 방침이 코드와 어긋나지 않도록 시험이 원문과 `settings_path()` 를 대조한다 |
-| 2026-08-20 | 스토어 제출 점검표 | _workspace/05_store-submission-checklist.md | 확인된 것(GPL·후원·개인 계정)과 남은 것(MSIX 루프백·자료 폴더·SOURCE_URL)을 갈라 적었다. 미확인 위에 제출 결정을 세우지 않기 위해 |
-| 2026-08-21 | 기기 라이브러리를 창이 뜬 뒤에 들인다 | ui/worker.py `_load_device_layer`, tests/test_core.py | 창이 뜨기까지 `pymobiledevice3` 를 기다렸다(소스 실행 8.5초 → 0.36초). 루프를 **먼저** 만들어야 들이는 도중 창이 닫혀도 `shutdown()` 이 갈 곳이 있다 |
-| 2026-08-21 | 시작 그림 — 창이 뜨기 전 몇 초를 채운다 | scripts/make_splash.py(신규), assets/splash.png, HomeBoard.spec `Splash`, app.py `_close_splash` | 그 구간에는 파이썬조차 시작 전이라 Qt 로는 띄울 수 없다. 부트로더가 직접 띄우는 Tk 그림만이 답 |
-| 2026-08-21 | **폴더 배포로 전환** (단일 exe → `dist\HomeBoard\`) | HomeBoard.spec `COLLECT`·`exclude_binaries`, build_exe.bat, paths.py, README.md | 21초 → 2.3초. 21초의 16.5초는 매 실행마다 자기 안을 푸는 시간이었다. MSIX 도 이 모양을 요구한다 |
-| 2026-08-21 | git 저장소 시작 (`main`, 157개 파일) | .gitignore, 전체 | 공개 저장소 주소가 `SOURCE_URL`·방침 URL·배포 자리를 한 번에 채운다. 기기 자료(`logs/`·`backups/`·`cache/`)는 막고, 주석의 예시 UDID 도 지웠다 |
-| 2026-08-21 | 미배치 예고에 기본 앱을 넣는다 — 뜰 수 있는 것만 | src/ipsm/device.py `shows_on_home_screen`·`_region_of`·`_home_region`·`list_installed_apps`, tests/test_core.py | 8/19 백업 대조에서 iOS 가 되붙인 4개 중 하나가 기본 앱 '돋보기'였다. 사용자 앱만 묻던 조회가 그것을 통째로 놓쳤다. 기본 앱 232개를 다 세면 반대로 190번 틀린 경고를 하므로 네 가지 근거로 40개만 남긴다 |
-| 2026-08-21 | **공개** — github.com/humanlyj/HomeBoard 에 올리고 `v1.0.14` 태그 | 원격 `origin`, 태그 v1.0.14 | GPL 은 실행 파일을 건네준 사람에게 소스에 닿을 길을 함께 주기를 요구한다. 익명으로 `LICENSE`·`PRIVACY.md` 가 열리는 것까지 확인했다 — 로그인해야 읽을 수 있는 주소는 없는 주소와 같다. 커밋 서명 이메일은 GitHub 계정과 맞춰 두었다(연결은 이름이 아니라 이메일로 된다) |
-| 2026-08-21 | **편집 규칙 실기기 검증** — 15건 통과 (묶기·이름·밀어내기·빈 자리 치우기·쓰기·되돌리기) | scripts/verify_edits.py(신규) | 시험은 우리가 지어낸 작은 배치로 돌았다. 폴더 35개·앱 284개가 섞인 진짜 배치에서도 같은 규칙이 서는지는 그 배치를 받아 보아야 알 수 있다. 기기에 쓰는 것은 `--apply` 를 붙였을 때뿐이고, 그것도 가장 작은 편집 하나만 보낸 뒤 되돌린다 |
-| 2026-08-21 | 자료의 자리를 수명으로 가른다 — 아이콘은 TEMP, 백업·로그는 아니다. 포장되면 문서 폴더로 | src/ipsm/paths.py `is_packaged`·`documents_dir`·`cache_root`, icons.py, ui/worker.py, app.py, PRIVACY.md, README.md, tests/test_core.py | MSIX 로 설치하면 exe 옆은 관리자 권한으로도 쓸 수 없다(직접 확인). 그러면 '옮겨 주세요'라는 우리 안내가 막다른 길이 된다. 사용자 제안대로 TEMP 를 쓰되 **백업은 보내지 않는다** — 저장 공간 센스가 켜진 PC 에서 임시 파일 정리는 정상 동작이고, 되돌릴 길을 OS 의 청소 대상으로 삼을 수는 없다 |
-| 2026-08-26 | 스토어 제출 형식 확정 — `MSIX 또는 PWA 앱` | _workspace/05_store-submission-checklist.md §2 | Partner Center 의 `+ 신상품` 목록이 곧 갈림길이다. MSIX 는 스토어가 Microsoft 인증서로 다시 서명해 주지만(인증서 불필요), EXE/MSI 는 우리가 CA 인증서를 사서 직접 Authenticode 서명하고 설치기까지 만들어야 한다. 남은 MSIX 쪽 위험은 돈이 아니라 시험으로 걷어낼 수 있는 것이라 이쪽을 먼저 본다 |
-| 2026-08-26 | **이름을 HomeSpread 로** — `HomeBoard` 가 Partner Center 에서 사용 중 | product.py `NAME`, HomeSpread.spec(개명), build_exe.bat, scripts/keep_data.py·gen_notices.py, __init__.py·app.py 저작권 줄, README.md, PRIVACY.md, THIRD-PARTY-NOTICES.md, tests/test_core.py, CLAUDE.md | 상표를 피하는 것과 선점을 통과하는 것은 다른 관문이다. 후보를 먼저 웹에서 훑어 임자 있는 다섯을 걸렀다. `SOURCE_URL` 은 저장소를 옮긴 뒤에 고친다 — 앞질러 적으면 닿지 않는 주소가 된다 |
-| 2026-08-26 | Defender 오탐 대응 — exe 에 버전 리소스와 아이콘을 새긴다 | product.py `COPYRIGHT`·`PUBLISHER`, HomeSpread.spec `version=`·`icon=`, tests/test_core.py | `Trojan:Win32/Bearfoos.B!ml` 로 두 번 격리됐다. `!ml` 은 기계학습의 추정이고, 그 추정이 나쁜 쪽으로 기우는 조건 중 우리가 채울 수 있는 것이 이 둘이었다. 새 빌드는 전체 검사와 실행을 모두 통과했다 — 다만 클라우드 판정은 해시 단위라 인과는 증명되지 않는다 |
-| 2026-08-26 | 쓰기 실패 문구가 제어된 폴더 액세스를 이름으로 짚는다 | paths.py `_cfa_hint`, translations_en.py, tests/test_core.py | 폴더 권한은 멀쩡한데 막히는 벽이라 "권한을 확인하세요"로는 빠져나올 수 없다. 더 나쁜 것은 그 다음 줄이었다 — "바탕화면이나 문서 폴더로 옮기라"고 권했는데 **그 둘이 바로 이 기능이 기본으로 지키는 자리다** |
-| 2026-08-26 | **MSIX A·B 단계 통과** — 느슨한 등록 + 실제 `.msix` 설치 | scripts/make_msix.py(그대로), packaging/identity.dev.json, .gitignore `tools/`, _workspace/05_store-submission-checklist.md | 읽기 전용 설치 폴더는 A 로 재현되지 않는다. `makeappx` 는 SDK 를 통째로 깔지 않고 NuGet 빌드 도구로 얻었고, 서명은 '서명되지 않은 네임스페이스' 표시로 건너뛰었다 |
-| 2026-08-26 | 시작 그림이 옛 이름을 보여주던 것 수정 — 그림에 이름표를 새긴다 | assets/splash.png, scripts/make_splash.py `setText`, tests/test_core.py | 그리는 코드는 처음부터 `product.NAME` 을 읽고 있었다. 틀린 것은 **다시 그리지 않은 산출물**이라 소스를 아무리 읽어도 잡히지 않았다. 픽셀에서 이름을 읽어낼 수는 없으므로, 그릴 때 쓴 이름을 PNG 의 `tEXt` 조각에 함께 적고 시험이 `product` 와 대조한다 — 낡은 그림이 조용히 있지 못한다 |
-| 2026-08-26 | 스토어 신원 적용 + 업로드용 패키지 | packaging/identity.json, dist/packages/HomeSpread_1.0.21.0_x64.msix | Partner Center 의 Product identity 를 그대로 옮겼다(Store ID 9NT54QJ7XQNL). 옛 이름이 든 1.0.19·1.0.20 패키지는 지웠다 — 고를 수 있는 자리에 두면 언젠가 잘못 올라간다 |
-| 2026-08-27 | 스토어 목록 원문 + 화면 그림 — **시연 배치로 찍는다** | _workspace/06_store-listing.md(신규), scripts/make_demo_layout.py·make_screenshots.py(신규), _workspace/screenshots/, 05_store-submission-checklist.md §3, .gitignore | 스토어 페이지는 영구히 공개되고 내린 뒤에도 색인에 남는다. 홈화면 그림 한 장은 그 사람이 무슨 앱을 쓰는지를 통째로 알려주므로, 사용자의 진짜 배치 대신 Apple 기본 앱만의 배치를 지어 찍었다. 손으로 찍지 않는 이유는 시작 그림 때와 같다 — 이름이 바뀌는 날 아무도 다시 찍지 않는다. 영어 그림은 앱 이름까지 영어로 갈아 끼운다(이름은 기기 언어를 따라온다) |
-| 2026-08-28 | 검색어를 언어별로 가른다 — en-us 의 한국어 셋을 영어로 교체 | _workspace/06_store-listing.md §2, 05_store-submission-checklist.md §3 | 검색어는 목록마다 따로 저장되므로 언어를 섞을 이유가 없다. 한국어 낱말은 영어권 검색에 닿지 않아 일곱 자리 중 셋을 그냥 버리는 셈이었다. 앞의 넷(iPhone·iOS 가 든 낱말)은 어느 언어에서나 검색되므로 그대로 두고, 뒤의 셋만 갈았다 |
-| 2026-08-28 | **후원 창구를 PayPal → GitHub Sponsors 로** | product.py `DONATE_ACCOUNT`·`donate_url`(`DONATE_ITEM`·`DONATE_CURRENCY`·`urlencode` 삭제), .github/FUNDING.yml(`custom:` → `github:`), ui/main_window.py, translations_en.py, PRIVACY.md ko·en, README.md §후원, _workspace/05·06, tests/test_core.py | PayPal 이 한국 계정의 후원을 막는다. 비즈니스 계정으로 올려도 풀리지 않아 계정 등급이 아니라 **나라**가 벽이다. GitHub Sponsors 는 Stripe Connect Express 라 한국이 열린다. 시험도 함께 고쳤다 — 주소 모양만 보던 것을 **어느 창구인지**까지 보게 하고, FUNDING.yml 대조는 주소가 아니라 손잡이로 한다 |
-| 2026-08-28 | 스토어 목록의 키워드 칸 — 초점을 뺀 뒤 저장하고, 새로 고쳐 확인한다 | _workspace/05_store-submission-checklist.md §3 | 칩이 눈에 보이는 것은 저장의 증거가 아니었다. `he-select` 위젯이 폼을 '변경됨'으로 표시하지 않아 `저장` 이 아무 요청도 보내지 않았고, 두 번을 그렇게 잃고서야 알았다. 확인은 저장이 아니라 **다시 읽기**로 한다 |
-| 2026-08-31 | **시연 배치·아이콘을 전부 우리가 짓는다** + 창테두리째 찍는다 + 비제휴 문구 | scripts/make_demo_layout.py(전면 재작성), scripts/make_demo_icons.py(신규), scripts/make_screenshots.py, _workspace/06 §4·§11, _workspace/05 §3, .gitignore, tests/test_core.py | 1.0.22 가 `10.1.1 Inaccurate Representation` 으로 거절됐다. Apple 아이콘이 화면을 채우고 창테두리가 없어 iPhone 화면으로 읽혔다. 이의 제기(12,626건 중 623건 번복)보다 반론의 여지를 없애는 쪽이 싸다. 패키지는 메타데이터만 바뀌어 그대로 |
-| 2026-08-31 | 잘라 온 그림이 우리 창인지 확인하고, 아니면 저장하지 않는다 | scripts/make_screenshots.py `_grab`·`_difference`, tests/test_core.py | 첫 실행에서 우리 창이 앞에 서지 못해 사용자의 다른 창들이 여덟 장에 담겼다. 즉시 지웠고 올라가지 않았다. 스토어 그림은 내려도 색인에 남으므로 이 확인은 선택이 아니다 |
-| 2026-08-31 | 시험 실행기를 파일 끝으로 옮긴다 — 뒤에 있던 시험 2개가 한 번도 돌지 않았다 | tests/test_core.py | `if __name__` 블록이 `SystemExit` 으로 끝나는데 그 아래에 시험이 두 개 더 있었다. 파이썬은 그 지점까지만 실행하므로 정의조차 되지 않았다. 115개가 통과했다는 말은 118개 중 115개였다 |
-| 2026-09-01 | **스토어 공개** — 1.0.22 인증 통과 · 새 그림 8장 반영 확인 · 비제휴 문구 누락 확인 | _workspace/05 §3 «통과했다», CLAUDE.md | 올라간 것을 미리보기 조각으로 판단하면 틀린다. displaycatalog API 로 설명문 원문과 그림 크기를 받아 대조했다 |
+**赞助渠道受收款地区限制（2026-08-28）：** 当时 PayPal 按钮返回 `Donations aren't supported in this organization's country`。调查得到两个条件：相关赞助产品要求企业账号，而韩国注册账号还受到收款地区限制，升级企业账号不能消除后者。上游也调查了 Buy Me a Coffee 的韩国结算和依赖 PayPal/Stripe 的 Ko-fi。最终启用了使用 Stripe Connect Express 的 GitHub Sponsors，并确认状态为 `Active`；这与独立注册 Stripe 的要求不同。赞助步骤要求 GitHub 账号，虽然未登录也能打开页面，因此按钮直接标明 GitHub，让用户点击前知道目的地。这些是当时调查结果，不是对支付服务现行政策的断言。
+
+**截图需要体现运行平台（2026-08-29 被拒，08-31 修订）：** Windows 1.0.22 因 `10.1.1 Inaccurate Representation` 被拒，意见称截图显示了非 Windows UI 或设备。八张图中的六张几乎全是 Apple 的真实图标；`window.grab()` 不包含系统边框，无法从画面辨认 Windows。上游还认为应注意当时政策 11.2 对元数据版权或授权的要求。修订版自行创建布局、名称和 43 个图标（`com.homespread.demo.*`），截图包含标题栏，并在拟提交说明末尾加入非关联声明。演示图不再依赖设备、备份或图标缓存，可从仓库重建；只改了元数据，程序包没有改动。
+
+**屏幕截图可能包含其它窗口（2026-08-31）：** 为了保留边框改用 `grabWindow` 后，首次运行因应用没有置前，八张图抓到了用户其它窗口。上游立即删除，没有上传。公开商店图片可能在下架后仍被索引，因此后来脚本先置前，再把捕获的窗口内部与 `window.grab()` 渲染结果比较；不一致就停止且不保存。测试用于防止移除该检查。
+
+**公开页面必须直接核验（2026-09-01）：** 重新提交的 1.0.22 获批，并在 `apps.microsoft.com/detail/9NT54QJ7XQNL` 公开，程序包未改动。Partner Center 的小预览无法区分深色背景上的新旧图块，上游曾据此判断错误。通过 `displaycatalog.mp.microsoft.com/v7.0/products/<StoreID>` 获取两种语言的完整说明和图片尺寸后，确认每种语言四张、尺寸 **1760×911**，是含窗口边框的新版图片；但两份说明均在“已验证环境”/`Verified on` 处结束，缺少拟添加的非关联声明。若要补充该声明，需要另一次仅修改元数据的提交；该记录没有声称已经提交或生效。
+
+## 变更记录
+
+下表保留上游原有条目及当时文件名。旧文件名、测试数量、工具限制和商店状态均按对应日期理解；它们不覆盖上述 macOS 现行规则。
+
+| 日期 | 变更 | 涉及对象 | 原因与证据 |
+|---|---|---|---|
+| 2026-08-19 | 初始协作配置：7 个 agent、8 个技能 | 全项目 | 初始设置。 |
+| 2026-08-19 | 修正核心前提：存在布局写入 API | CLAUDE.md、多份技能 | Phase 1a 确认 `setIconState`，推翻必须重放手势的前提。 |
+| 2026-08-19 | 将 `layout-diff-planner` 限定为回退方案，保留文件 | skills/layout-diff-planner | 直接原样写回验证失败后可重新评估的备选，不是当前主路径。 |
+| 2026-08-19 | 主要身份键从 `bundleIdentifier` 改为 `displayIdentifier` | skills/homescreen-layout-model、src/ipsm/iconstate.py | 首次真机转储有 79 项（26%）被判为 Unknown；卸载保留项没有 bundle ID。 |
+| 2026-08-19 | 备份改用二进制 plist | src/ipsm/backup.py、logging_setup.py | XML plist 截断 `iconModDate` 小数秒，完整性检查因此正确阻止写入。 |
+| 2026-08-19 | **原样写回验证通过（REQ-003）**，当时可开始实现编辑 | 上游真机验证 | 309 项，丢失 0、移动 0；当时判定由“完全一致”改为“无丢失或移动”。当前还核对内容变化。 |
+| 2026-08-20 | ADR-001 确定 PySide6，并实现编辑 UI | src/ipsm/ui/、app.py、run_app.bat | UI 与设备层共用 Python 对象，避免未知字段在跨语言序列化时丢失。 |
+| 2026-08-20 | 增加安装列表与未布局应用提示 | device.list_installed_apps、layout.unplaced_apps | 应用前显示可能被 iOS 回填的应用名称。 |
+| 2026-08-20 | 编写四份契约与界面规格 | _workspace/02_contracts/、02_ui-engineer_screen-spec.md | 实现先于契约推进，随后从实际代码提取并记录边界。 |
+| 2026-08-20 | 验证图标获取 | cache/icons/ | 287 次请求全部成功，7.4 秒，失败 0。 |
+| 2026-08-20 | **编辑到写入流程真机通过** | 上游真机验证 | 应用两次，丢失 0、iOS 新增 0；第二次发送与读回完全一致。 |
+| 2026-08-20 | 修复不可见的工具栏文字 | ui/main_window.py STYLE | 只设置深色背景而未设置 QToolButton 文字颜色，保留了 Windows 默认黑字。 |
+| 2026-08-20 | PyInstaller 单 exe 分发 | iPhoneScreenManager.spec、src/ipsm/paths.py | 支持没有 Python 的 PC；资料放在 exe 旁，不能放在结束后会清理的 `_MEIPASS`。 |
+| 2026-08-20 | 新增分组建文件夹与重命名 | layout.py、ui/tiles.py、ui/canvas.py、ui/main_window.py | 先确认当时 26 个文件夹仅含 `displayName`、`iconLists`、`listType`；重命名写入 `renamed_to`，不修改 raw。 |
+| 2026-08-20 | 修复重命名输入框白底白字 | ui/main_window.py STYLE、tests/test_core.py | `QWidget { color }` 只设亮字，未设置 `QLineEdit` 背景；增加实际渲染后的亮度差回归检查。 |
+| 2026-08-20 | 文件夹满页时增页，移空时删除文件夹 | layout.py MoveCommand·move·changes、ui/tiles.py | 发送 3 个空文件夹后被 iOS 删除，出现“丢失 3、意外移动 39”的提示；增页与删除都纳入单次拖动的撤销单元。 |
+| 2026-08-20 | 在已满文件夹页插入时挤移（SpillCommand） | layout.py SpillCommand·_plan_spill·can_move | 原 `can_move` 因“已满”拒绝从第二页拖到第一页；iPhone 会将最后一项挤到下一页。 |
+| 2026-08-20 | 清理文件夹内空页 | layout.py MoveCommand.pruned | 与空文件夹同理，避免系统删除空页造成后续位置偏移。 |
+| 2026-08-20 | 主屏幕挤移与空主页清理 | layout.py `_page_family`·`_spill_room`·`_plan_spill`·`_drop_pages`、ui/tiles.py | 用“页面组”共享文件夹和主页规则；`can_move` 必须接收 `dst_index` 才能与 UI 一致判断。 |
+| 2026-08-20 | 设置中切换韩语和 English | src/ipsm/i18n.py、translations_en.py、ui/main_window.py SettingsDialog·retranslate、app.py | 原文作为翻译键，缺译时仍有文字；当时内部日志不翻译，便于搜索同一事件；测试检查漏译。 |
+| 2026-08-20 | Windows 启动指南自动检查准备状态并提供 Store 入口 | src/ipsm/apple_devices.py、ui/guide.py、ui/main_window.py `_show_guide` | 原来只有点击读取后才看到缺少组件的错误；以 27015 连通性为依据，安装目录只用于选择提示，不据此阻断。 |
+| 2026-08-20 | 修复语言下拉列表白底白字 | ui/main_window.py STYLE `QComboBox`·`QComboBox QAbstractItemView`、tests/test_core.py | 展开列表是内部的另一控件，不能只设置组合框背景；加入展开后的亮度对比测试。 |
+| 2026-08-20 | **版本 1.0**：集中声明、窗口显示、Windows 构建递增 patch | src/ipsm/version.py、scripts/bump_build.py、build_exe.bat | Python 的 version.py 承担早期全局约定 `shared_vars.h` 的集中版本职责，帮助辨认旧 exe。 |
+| 2026-08-20 | 产品改名 **HomeBoard**，名称与副标题分开 | src/ipsm/product.py（新增）、version.py、app.py、device.py、ui/main_window.py、HomeBoard.spec、build_exe.bat、README.md | 按当时商标与商店命名调查，将 `NAME` 与 `TAGLINE` 分开，测试防止在代码多处重复写名称。 |
+| 2026-08-20 | 设置页增加 PayPal 赞助按钮 | src/ipsm/product.py `donate_url`、ui/main_window.py SettingsDialog·`_donate`、translations_en.py | 当时按政策 10.8.2 采用无对价赞助；URL 由 product 集中生成，旧 PayPal URL 使用 `no_recurring=1` 关闭定期选项。 |
+| 2026-08-20 | **按 GPL-3.0-or-later 发布**，提供原文、告知与关于窗口 | LICENSE、THIRD-PARTY-NOTICES.md、third_party_licenses/、scripts/gen_notices.py、src/ipsm/ui/about.py、paths.bundled、HomeBoard.spec datas | 项目采用与 pymobiledevice3 相容的 GPL 分发；根据安装环境生成第三方告知，避免依赖改变后清单过期。 |
+| 2026-08-20 | 隐私说明写入、随 exe 分发并在窗口阅读 | PRIVACY.md、ui/about.py、HomeBoard.spec、tests/test_core.py | 满足当时 Win32 商店要求，测试对照说明与 `settings_path()`。 |
+| 2026-08-20 | 建立商店提交清单 | _workspace/05_store-submission-checklist.md | 区分当时已确认的 GPL、赞助、个人账号与待确认的 MSIX 回环、资料目录和 SOURCE_URL。 |
+| 2026-08-21 | 窗口出现后再导入设备库 | ui/worker.py `_load_device_layer`、tests/test_core.py | 当时源码启动从 8.5 秒降至 0.36 秒；先创建循环，确保导入期间关闭窗口时 `shutdown()` 有可提交任务的位置。 |
+| 2026-08-21 | 增加 Windows 启动画面 | scripts/make_splash.py（新增）、assets/splash.png、HomeBoard.spec `Splash`、app.py `_close_splash` | Python 尚未启动时不能用 Qt 提示，改由 bootloader 显示 Tk 图像。 |
+| 2026-08-21 | **从单 exe 改为目录分发**，输出 `dist\HomeBoard\` | HomeBoard.spec `COLLECT`·`exclude_binaries`、build_exe.bat、paths.py、README.md | 实测 21 秒降至 2.3 秒；原先 16.5 秒花在每次解压；MSIX 也使用该目录形式。 |
+| 2026-08-21 | 建立 Git 仓库（main，157 个文件） | .gitignore、全项目 | 一个公开地址覆盖源码、隐私与分发入口；排除设备数据，并删除注释中的示例 UDID。 |
+| 2026-08-21 | 未布局提示纳入能显示的系统应用 | src/ipsm/device.py `shows_on_home_screen`·`_region_of`·`_home_region`·`list_installed_apps`、tests/test_core.py | 8 月 19 日追加的 4 个应用之一是放大器；仅查询用户应用会漏报，而全算 232 个系统应用会误报 190 个，遂按四项依据保留 40 个候选。 |
+| 2026-08-21 | **公开到 github.com/humanlyj/HomeBoard，打 v1.0.14 标签** | 远程 origin、v1.0.14 | 验证匿名访问 LICENSE 和 PRIVACY.md；源码入口不能要求收件者登录才可阅读。提交署名邮箱与 GitHub 账号匹配，关联依据是邮箱而非显示名。 |
+| 2026-08-21 | **真机编辑规则检查 15 项通过**，涵盖分组、命名、挤移、清空、写入和恢复 | scripts/verify_edits.py（新增） | 用 35 个文件夹、284 个应用的真实布局检查模型；只有 `--apply` 才写设备，发送最小编辑后恢复。 |
+| 2026-08-21 | 按资料用途分目录：图标进 TEMP，备份和日志保留；MSIX 改用文档目录 | src/ipsm/paths.py `is_packaged`·`documents_dir`·`cache_root`、icons.py、ui/worker.py、app.py、PRIVACY.md、README.md、tests/test_core.py | 上游确认 MSIX 安装目录不可写；临时文件可被 Storage Sense 正常清理，不能把备份一并放入。 |
+| 2026-08-26 | 商店提交类型确定为“MSIX 或 PWA 应用” | _workspace/05_store-submission-checklist.md §2 | 当时 Partner Center 的“新增产品”分支中，MSIX 由商店以 Microsoft 证书重签；EXE/MSI 则需自己的 CA 证书、Authenticode 签名与安装器，因此选择可通过测试解决剩余问题的 MSIX。 |
+| 2026-08-26 | **改名 HomeSpread**，因 HomeBoard 已被占用 | product.py `NAME`、HomeSpread.spec（改名）、build_exe.bat、scripts/keep_data.py·gen_notices.py、__init__.py·app.py 版权行、README.md、PRIVACY.md、THIRD-PARTY-NOTICES.md、tests/test_core.py、CLAUDE.md | 商标约束和名称占用是不同条件；先排除五个已有使用者的候选，仓库实际迁移后再改 SOURCE_URL。 |
+| 2026-08-26 | 应对 Defender 误报：exe 加版本资源和图标 | product.py `COPYRIGHT`·`PUBLISHER`、HomeSpread.spec `version=`·`icon=`、tests/test_core.py | 曾两次被标记 `Trojan:Win32/Bearfoos.B!ml`；补充能控制的程序元数据后，新构建扫描与启动通过。云判定按文件哈希，不能据此证明因果。 |
+| 2026-08-26 | 写入失败提示点明“受控文件夹访问” | paths.py `_cfa_hint`、translations_en.py、tests/test_core.py | 文件夹权限正常也可能被系统拦截；旧提示建议移到桌面或文档，反而正是该功能默认保护的位置。 |
+| 2026-08-26 | **MSIX A、B 验证通过**：松散注册和真实 msix 安装 | scripts/make_msix.py（未改）、packaging/identity.dev.json、.gitignore tools/、_workspace/05_store-submission-checklist.md | A 不能复现只读安装目录；通过 NuGet 构建工具取得 makeappx，未装整个 SDK，使用未签名命名空间完成测试安装。 |
+| 2026-08-26 | 修复启动图仍显示旧名称 | assets/splash.png、scripts/make_splash.py `setText`、tests/test_core.py | 绘图源码已读取 product.NAME，问题是旧图片没重生成；将生成时名称写入 PNG tEXt 元数据，再由测试核对。 |
+| 2026-08-26 | 应用商店身份并生成上传包 | packaging/identity.json、dist/packages/HomeSpread_1.0.21.0_x64.msix | 从 Partner Center 复制 Product identity，Store ID 为 9NT54QJ7XQNL；删除仍带旧名的 1.0.19 和 1.0.20 包，避免误选上传。 |
+| 2026-08-27 | 商店说明与截图改用演示布局 | _workspace/06_store-listing.md（新增）、scripts/make_demo_layout.py·make_screenshots.py（新增）、_workspace/screenshots/、05_store-submission-checklist.md §3、.gitignore | 不公开用户真实应用清单；当时先构造只有 Apple 内置应用的示例，自动生成以便改名后重建；英文图也更换应用名。8 月 31 日进一步改成全自创图标。 |
+| 2026-08-28 | 按语言拆分搜索词，将 en-us 的三个韩语词替换为英语 | _workspace/06_store-listing.md §2、05_store-submission-checklist.md §3 | 七个关键词中，前四个含 iPhone/iOS 的词保留，后三个改为英语，避免浪费英语搜索入口。 |
+| 2026-08-28 | **赞助从 PayPal 改为 GitHub Sponsors** | product.py `DONATE_ACCOUNT`·`donate_url`（删除 DONATE_ITEM、DONATE_CURRENCY、urlencode）、.github/FUNDING.yml（custom: → github:）、ui/main_window.py、translations_en.py、PRIVACY.md ko/en、README.md 赞助章节、_workspace/05·06、tests/test_core.py | 当时韩国注册账号的 PayPal 限制不因企业账号升级解除；GitHub Sponsors 使用 Stripe Connect Express。测试改为核对支付渠道和 FUNDING.yml 的账号标识，不只核对 URL 外形。 |
+| 2026-08-28 | 商店关键词先移出焦点、再保存并刷新核对 | _workspace/05_store-submission-checklist.md §3 | he-select 的可见词条不等于已保存；表单未标记变化时，保存按钮没有发出请求。两次丢失后改为重新读取验证。 |
+| 2026-08-31 | **布局、名称和图标全改为自创**，截图保留边框并准备非关联声明 | scripts/make_demo_layout.py（重写）、scripts/make_demo_icons.py（新增）、scripts/make_screenshots.py、_workspace/06 §4·§11、_workspace/05 §3、.gitignore、tests/test_core.py | 1.0.22 因 10.1.1 被拒；Apple 图标加无边框画面容易被理解为 iPhone 屏幕。上游记录的申诉参考数为 12,626 件中 623 件推翻，故选择直接修订元数据，程序包不变。 |
+| 2026-08-31 | 核验捕获的确为本应用，否则不保存 | scripts/make_screenshots.py `_grab`·`_difference`、tests/test_core.py | 首次抓到八张其它窗口图，立即删除且未上传；公开图片下架后仍可能留在索引，因此必须检查。 |
+| 2026-08-31 | 将测试执行入口移至文件末尾 | tests/test_core.py | `if __name__` 块以 SystemExit 结束，后面两项测试从未定义或执行；原“115 项通过”只覆盖总计 118 项中的 115 项。 |
+| 2026-09-01 | **Windows 商店发布**：1.0.22 获批、新八张截图已反映、非关联声明遗漏 | _workspace/05 §3“已通过”、CLAUDE.md | 不依赖小预览判断公开结果，通过 displaycatalog API 核对完整说明与图片尺寸。 |
+| 2026-11-13 | 中文 macOS 移植与安全修订 | src/ipsm/、macOS 构建脚本、中文说明和安全报告 | 系统连接、私有资料目录、中文界面、同设备备份、新鲜度检查、写后内容核对与会话写入校验；保留明确确认的恢复通道。真机写回及恢复未执行。 |
+| 2026-11-13 | 开发文档与 agent 指南中文化并统一现行约束 | CLAUDE.md、.claude/agents/、相关技能与工作区文档 | 完整保留历史说明、示例和时间线；将已过时的 WDA/手势与 Windows-only 前提限定为历史或有条件的备选研究。 |

@@ -1,16 +1,15 @@
-# 함께 실려 오는 것들
+# 第三方组件与许可证
 
-HomeSpread 는 아래 라이브러리 위에 서 있다. 이 파일은 손으로 적지 않는다 —
-`scripts/gen_notices.py` 가 설치된 것을 그대로 읽어 다시 쓴다.
+本文件保留上游 Windows 构建环境的 92 个组件快照，包名、版本和许可元数据不因汉化而改写。各行链接指向 `third_party_licenses/` 中的法律原文；没有原文链接的条目不表示没有许可要求。
 
-꾸러미 92개. 각 줄의 **원문**은 `third_party_licenses/` 안의 파일이다.
+当前 macOS 版使用独立的 `requirements-macos.lock`，构建时由 `scripts/prepare_macos.py` 生成对应版本的清单和原文，随 `.app` 分发。不能用此 Windows 快照推断 macOS 的依赖版本。
 
-> **GPL 이 이 앱 전체의 라이선스를 정한다.** `pymobiledevice3` 가
-> GPL-3.0-or-later 이고 우리는 그것을 함께 실어 배포하므로, HomeSpread 자체도
-> GPL-3.0-or-later 로 공개한다. 자세한 것은 `LICENSE` 와 README 의 라이선스 절.
+HomeSpread 声明采用 GPL-3.0-or-later，第三方组件保留各自许可。项目法律原文见 [LICENSE](LICENSE)，中文阅读说明见 [LICENSE.zh-CN.md](LICENSE.zh-CN.md)。
 
-| 꾸러미 | 판 | 라이선스 | 원문 | 원산지 |
-|--------|----|----------|------|--------|
+Windows 构建环境可运行 `scripts/gen_notices.py` 重新生成本清单；该脚本读取实际安装版本，并会更新原文目录，不应在其它环境运行后把结果误称为 Windows 历史快照。
+
+| 组件 | 版本 | 许可元数据 | 原文 | 来源 |
+|---|---|---|---|---|
 | annotated-doc | 0.0.5 | MIT | [annotated-doc-0.0.5.txt](third_party_licenses/annotated-doc-0.0.5.txt) | [https://github.com/fastapi/annotated-doc](https://github.com/fastapi/annotated-doc) |
 | annotated-types | 0.8.0 | MIT | [annotated-types-0.8.0.txt](third_party_licenses/annotated-types-0.8.0.txt) | [https://github.com/annotated-types/annotated-types](https://github.com/annotated-types/annotated-types) |
 | ansicon | 1.89.0 | Mozilla Public License 2.0 (MPL 2.0) | [ansicon-1.89.0.txt](third_party_licenses/ansicon-1.89.0.txt) | [https://github.com/Rockhopper-Technologies/ansicon](https://github.com/Rockhopper-Technologies/ansicon) |
@@ -104,4 +103,4 @@ HomeSpread 는 아래 라이브러리 위에 서 있다. 이 파일은 손으로
 | xonsh | 0.24.1 | BSD 2-Clause License | [xonsh-0.24.1.txt](third_party_licenses/xonsh-0.24.1.txt) | [https://xon.sh](https://xon.sh) |
 | zeroconf | 0.150.0 | LGPL-2.1-or-later | [zeroconf-0.150.0.txt](third_party_licenses/zeroconf-0.150.0.txt) | [https://github.com/python-zeroconf/python-zeroconf](https://github.com/python-zeroconf/python-zeroconf) |
 
-exe 를 만드는 데만 쓰고 exe 안에는 들어가지 않는 것(altgraph, pefile, pip, pyinstaller, pyinstaller-hooks-contrib, setuptools, wheel)은 뺐다.
+上游清单排除了只用于构建 exe 的工具：altgraph、pefile、pip、pyinstaller、pyinstaller-hooks-contrib、setuptools、wheel。

@@ -1,126 +1,114 @@
-# 계약: layout-model
+# 接口契约：layout-model
 
-**소유자:** homescreen-model-analyst
-**구현:** `src/ipsm/iconstate.py` (해석), `src/ipsm/layout.py` (편집 문서)
-**상태:** 실기기 309개 항목으로 확인됨
+**负责人角色：**`homescreen-model-analyst`。
 
-홈화면 하나를 프로그램 안에서 무엇으로 볼 것인가. 다른 모든 계약이 이 위에 선다.
+**实现：**`src/ipsm/iconstate.py`（解析）、`src/ipsm/layout.py`（编辑文档）。
 
-## 두 겹으로 나눈 이유
+**证据范围：**上游曾使用实机 309 个条目验证模型；2026-11-13 移植版增加独立写入保护。本机真实写入未验证。
 
-| 겹 | 파일 | 무엇을 아는가 |
+模型定义应用如何表达一份主屏幕，其它契约建立在这个数据边界上。
+
+## 两层模型
+
+| 层 | 文件 | 职责 |
 |----|------|--------------|
-| 해석 | `iconstate.py` | plist 를 읽어 종류를 붙인다. **편집하지 않는다** |
-| 편집 | `layout.py` | 페이지·자리·이동·취소를 안다. plist 모양은 `raw` 로만 들고 있다 |
+| 解析 | `iconstate.py` | 读取 plist 并分类，不编辑原始内容 |
+| 编辑 | `layout.py` | 管理页面、位置、移动、撤销；用 `raw` 保存原始结构 |
 
-해석 층을 편집 층과 섞지 않는 이유는 **원본 보존** 때문이다. 편집 층의 `Node.raw` 는
-기기에서 온 dict 그 자체이고, `to_raw()` 는 폴더가 아닌 한 그것을 손대지 않고 돌려준다.
-우리가 이해한 필드만으로 항목을 다시 지어내면, 이해하지 못한 필드는 그 순간 사라진다.
+分层用于保留原始数据。`Node.raw` 保存设备提供的对象，非文件夹的 `to_raw()` 原样返回它；文件夹重建 `iconLists` 时保留其它原始键。只用已理解字段重建条目会丢失未知字段，因此禁止这种做法。
 
-## 정체성
+## 条目标识
 
-**항목의 정체성 키는 `displayIdentifier` 다.** `bundleIdentifier` 가 아니다.
+优先使用 **`displayIdentifier`**，没有该字段时才回退到 `bundleIdentifier`。
 
-> 2026-08-19 정정. 실기기 첫 덤프에서 79개(26%)가 Unknown 으로 분류됐다. 오프로드된
-> 앱에는 번들 ID 가 없고 `displayIdentifier` 만 있다. 번들 ID 로 정체성을 잡으면
-> 오프로드된 앱은 전부 "알 수 없는 항목"이 되어 움직일 수 없게 된다.
+2026-08-19 的首份上游实机数据中，79 个条目，约 26%，曾被误判为未知项：已卸载但保留图标的应用没有包标识符，只有 `displayIdentifier`。仅使用 `bundleIdentifier` 会使这些条目无法移动。
 
-`placed_identifiers()` 는 두 값을 **모두** 담는다. 설치 목록(`list_installed_apps`)은
-번들 ID 로만 말하므로, 한쪽만 보면 "설치됐는데 홈화면에 없다"는 거짓 경고를 하게 된다.
+`placed_identifiers()` 同时收集两个字段。安装清单按包标识符返回，若只比较其中一个字段，会错误提示“已安装但不在主屏幕”。
 
-## 종류 (ItemKind)
+## 条目类型 `ItemKind`
 
-| 종류 | 판정 | 움직일 수 있는가 |
+| 类型 | 判断 | 能否移动 |
 |------|------|-----------------|
-| `APP` | `displayIdentifier` 가 있고 폴더가 아니다 | 예 |
-| `FOLDER` | `listType == "folder"` | 예 (폴더 안으로는 못 들어간다) |
-| `WEB_CLIP` | 식별자가 웹 클립 꼴 | 예 (아이콘 PNG 는 없다) |
-| `UNKNOWN` | 위 어느 것도 아니다 (위젯 등) | **아니오** |
+| `APP` | 非文件夹，含显示/包标识符；旧格式字符串也视为应用 | 可以 |
+| `FOLDER` | `listType == "folder"` 或含 `iconLists` | 可以，但不能嵌套进入另一文件夹 |
+| `EMPTY` | 原始值为 `None` | 不可以 |
+| `UNKNOWN` | 其余未知结构，如尚未理解的小组件 | 不可以 |
 
-**모르는 것은 움직이지 않는다.** 위치를 바꾸려면 그 항목이 무엇인지 알아야 하는데,
-모르는 것을 옮기다 잃으면 되돌릴 수 있어도 사용자는 이미 놀란 뒤다. 대신 자리는 그대로
-지키고 `raw` 를 그대로 다시 쓴다.
+网页快捷方式由 `is_web_clip` 标记识别，属于应用条目，不是独立的 `WEB_CLIP` 枚举成员；旧文中的枚举描述已按代码修正。它可以移动，但设备未必提供图标 PNG。
 
-## 자리 (Container)
+未知项保留原始值和位置。模型禁止直接移动；写入入口还会拒绝因其它条目的插入、删除或页面变化而造成的未知项/空占位间接位移。保留返回数据不代表系统未返回的状态已经受到保护。
+
+## 容器 `Container` 与网格
 
 ```python
 @dataclass
 class Grid:
-    columns, rows, dock_capacity, folder_columns, folder_rows, max_pages
-    page_capacity() -> int
-    folder_page_capacity() -> int
-    from_metrics(metrics) -> Grid       # 기기가 준 값 우선, 없으면 iPhone 기본값
+    columns: int
+    rows: int
+    dock_capacity: int
+    folder_columns: int
+    folder_rows: int
+    max_pages: int
+    folder_max_pages: int
+
+    @property
+    def page_capacity(self) -> int: ...
+    @property
+    def folder_page_capacity(self) -> int: ...
+    @classmethod
+    def from_metrics(cls, metrics) -> Grid: ...  # 设备值优先，否则用声明的回退值
 ```
 
-- `state[0]` 은 **독**, `state[1:]` 이 페이지다. 이 순서를 바꾸지 않는다.
-- 폴더는 `iconLists` 안에 다시 페이지를 가진다. `containers()` 는 독 → 페이지 →
-  폴더 페이지 순으로 전부 훑는다.
+- `state[0]` 是程序坞，`state[1:]` 是主屏幕页面，不能交换顺序。
+- 文件夹通过 `iconLists` 包含自己的页面。`containers()` 遍历程序坞、主屏幕页面和文件夹页面。
+- `page_capacity`、`folder_page_capacity` 是属性，不是调用方法；回退值来自上游 iPhone 样本，不能当作当前设备实测。
 
-## 편집 문서 (LayoutDocument)
+## 编辑文档 `LayoutDocument`
+
+以下是使用概要：
 
 ```python
 LayoutDocument(origin: list, grid: Grid)
-    .origin              # 되돌릴 기준. 절대 건드리지 않는다
-    .can_move(node_uid, dst_uid, dst_index=None) -> str | None   # 못 옮기면 '이유'
+    .origin                                  # 不可修改的读入基准
+    .can_move(node_uid, dst_uid, dst_index=None) -> str | None
     .move(node_uid, dst_uid, dst_index)
-    .can_group(node_uids) -> str | None           # 못 묶으면 이유
-    .group(node_uids, name) -> str                # 새 폴더 노드의 uid
-    .suggest_group_name(node_uids) -> str         # 기본 이름 (첫 항목의 이름)
+    .can_group(node_uids) -> str | None       # 返回不能分组的原因，或 None
+    .group(node_uids, name) -> str            # 新文件夹节点 uid
+    .suggest_group_name(node_uids) -> str     # 默认取首项名称
     .can_rename(node_uid, name) -> str | None
     .rename_folder(node_uid, name)
-    .add_page() / .remove_page(i) / .reorder_pages(a, b)
+    .add_page() / .remove_page(index) / .reorder_pages(from_index, to_index)
     .undo() / .redo() / .can_undo / .can_redo
-    .to_state() -> list          # 기기에 쓸 plist
-    .verify_identity() -> bool   # 편집이 없으면 to_state() == origin 인가
-    .changes() -> list[str]      # 사용자에게 보여줄 변경 목록
+    .to_state() -> list                      # 待写入的 plist 结构
+    .verify_identity() -> bool               # 从 origin 重新构建后是否原样一致
+    .changes() -> list[str]                  # 用户可读的变更清单
     .placed_identifiers() -> set[str]
     .unplaced_apps(installed) -> list[tuple[str, str]]
 ```
 
-### 지키기로 한 것
+## 编辑不变量
 
-- **`can_move` 가 유일한 판정자다.** 화면은 스스로 판단하지 않고 여기에 묻는다.
-  두 곳에서 판단하면 "되는 것처럼 보였는데 안 되는" 화면이 생긴다.
-- 거절 이유는 **사용자에게 그대로 보여줄 수 있는 한 문장**이어야 한다. 화면이 문구를
-  다시 짓지 않는다.
-- 변경 목록은 **원본 스냅숏과의 대조**로만 만든다. 명령 이력을 되짚어 계산하면
-  취소·재실행이 섞였을 때 어긋난다.
-- 페이지를 옮긴 것은 **한 줄**로 보고한다. 그 안의 앱까지 세면 목록이 수십 줄로 불어나
-  사용자가 적용 전에 읽지 않게 된다.
-- `verify_identity()` 가 거짓이면 **쓰기를 막는다.** 경고만 하고 버튼을 살려 두면,
-  경고를 닫은 사용자에게는 아무 일도 없었던 것과 같다.
-- 새 폴더의 raw 는 `displayName` · `listType` · `iconLists` **세 키만** 만든다. 기기의
-  폴더 26개가 전부 이 모양이므로, 더 지어낼 것도 빠뜨릴 것도 없다.
-- 이름 바꾸기는 `Node.renamed_to` 에만 적는다. `raw` 는 끝까지 원본이고, `to_raw()` 가
-  내보낼 때 `displayName` 한 키만 갈아 끼운다 — 모르는 키는 그대로 실린다 (REQ-017).
-- 묶기는 고른 **순서가 아니라 화면에 보이는 순서**로 담고, 새 묶음은 첫 항목이 있던
-  자리에 놓는다. 눈으로 좇을 수 있는 자리는 그것뿐이다.
-- 묶음 페이지가 찼다는 것은 묶음이 찼다는 뜻이 아니다. 빈자리가 있는 페이지가 먼저이고,
-  없으면 `folder_max_pages` 까지 새 페이지를 편다. 판정은 `can_move` 한 곳에만 둔다 —
-  UI 가 따로 세면 반드시 어긋난다.
-- 꽉 찬 페이지의 **자리를 겨눈** 놓기(`dst_index < len(items)`)는 밀어내기다. 뒤가
-  한 칸씩 밀리고 넘친 것이 다음 페이지 **맨 앞**으로 간다. 끝을 겨눈 놓기는 밀지 않는다.
-  **홈화면과 묶음 안이 같은 규칙을 쓴다** — `_plan_spill` 한 벌이 둘 다 처리하고,
-  다른 것은 `_page_family` 가 알려주는 칸 수·최대 장수뿐이다. 두 벌로 적으면 언젠가
-  한쪽만 고치게 된다.
-- `can_move` 는 **겨눈 자리까지 받는다.** `dst_index` 를 모르고 물으면(None) 꽉 찬
-  페이지를 그대로 거절한다 — 자리를 정하기 전의 물음에 '된다'고 답하면, 화면이
-  실제로 놓을 때 안 되는 것이 되어 있다. 화면은 `_resolve_target` 에서 계산한 자리를
-  반드시 함께 넘긴다.
-- 같은 묶음 안에서의 이동은 개수를 늘리지 않으므로 **가득 참으로 막지 않는다.** 막으면
-  꽉 찬 묶음의 1·2페이지 사이에서 자리를 바꿀 수 없다.
-- 페이지가 다 비면 **그 페이지를 지운다.** 홈화면도 묶음 안도 같다 (무리의 마지막
-  한 장은 비어도 남긴다 — 페이지가 없는 홈화면·묶음은 없다). 묶음이 통째로 없어져
-  그 묶음만 놓여 있던 홈 페이지가 비는 경우도 함께 치운다.
-- 마지막 항목이 빠지면 **그 묶음을 우리가 지운다.** 빈 묶음을 보내면 iOS 가 지우고
-  뒤따르던 항목이 전부 밀려, 검증기가 손실·오이동으로 읽는다 (2026-08-20 실기기 확인).
-- 페이지가 펴지는 것도 묶음이 없어지는 것도 **같은 `MoveCommand` 안**에 담는다. 따로
-  두면 취소를 두 번 눌러야 하고, 그 사이 상태는 사용자가 만든 적 없는 모양이다 (REQ-014).
-- 이름만 바꾼 편집도 `changes()` 에 한 줄로 나온다. 아무것도 움직이지 않았다고 해서
-  `dirty` 가 거짓이 되면 적용 단추가 잠긴 채로 남는다.
+- **`can_move` 是移动规则的统一判定者。**界面传入实际目标位置，不自行复制模型规则；写入层的设备和数据完整性检查是另一道保护。
+- 拒绝原因是一句可直接展示给用户的话，界面无需重新拼接。
+- 变更清单对照原始快照生成，不回放命令历史来推断，避免撤销/重做后的偏差。
+- 页面排序变化只报告一行，不把页内每个应用都列成单独移动。
+- `verify_identity()` 为假时禁用普通应用。它证明的是内存解析/重建保真，**不是设备实际回写兼容性**；后者由会话测试判断。
+- 新文件夹只构造 `displayName`、`listType`、`iconLists` 三个键。这与上游观察到的 26 个文件夹一致，是已采用的模型，不保证所有 iOS 都接受新建结果。
+- 重命名先记录到 `Node.renamed_to`，不改原始 `raw`。`to_raw()` 导出时只替换 `displayName`，保留其它字段（REQ-017）。
+- 分组按屏幕展示顺序收纳，而非点击选择顺序；新文件夹放在第一个条目原来的位置。
+- 一个文件夹页面已满不等于整个文件夹已满。优先找有空间的页面，没有则在 `folder_max_pages` 上限内新增；由模型统一判断。
+- 拖到满页内某个明确位置，即 `dst_index < len(items)`，会使后续项顺移，溢出项进入下一页最前面。拖到尾部追加区域不会把未瞄准的条目跨页推出，而是寻找可容纳位置。
+- 主屏幕和文件夹共用 `_plan_spill`，由 `_page_family` 提供各自容量及页数上限，避免维护两套规则。
+- `can_move` 必须接收目标索引。不提供 `dst_index` 时，无法确认具体插入方案，满页会被拒绝；界面必须传入 `_resolve_target` 计算的位置。
+- 同一文件夹内跨页移动不增加总条目数量，不能仅因整个文件夹已满就拒绝。
+- 页面变空时清理该页，但同一页面组的最后一页可保留为空；文件夹消失后，其所在主屏幕页若变空，也一起处理。
+- 最后一个条目移出文件夹后，由模型删除空文件夹。上游 2026-08-20 实测显示 iOS 会自行删除空文件夹，并使后续项前移，旧比较器因此误报丢失和位移。
+- 新增页、删除空页和空文件夹等连带变化，与移动一起放在同一个 `MoveCommand` 中；用户一次撤销即可回到操作前状态（REQ-014）。
+- 仅重命名也必须出现在 `changes()` 中，并使 `dirty` 为真，不能因为没有移动就关闭应用入口。
 
-## 확인된 것
+## 上游验证记录与当前边界
 
-- 309개 항목 항등 왕복 통과 (REQ-003) — 손실·이동 0
-- `tests/test_core.py` 71개 통과 (기기 없이) — 묶기·이름 바꾸기·페이지 증감·밀어내기 포함
-- 홈 페이지 밀어내기와 빈 홈 페이지 치우기는 `[미검증]` (실기기 쓰기 필요)
+- 上游 309 个条目原样回写通过 REQ-003，丢失和意外位移均为 0；设备和系统信息见设备桥契约。
+- 当时 `tests/test_core.py` 71 项无设备测试通过，覆盖分组、重命名、页数变化和顺移。
+- 当时主屏幕跨页顺移和空主屏幕页清理尚未实机写入验证。后续纯模型测试不将这一状态自动改为已验证。
+- 当前移植版的模拟回归结果见 [macOS 独立验收记录](../04_macos-qa_final-report.md)；未知 iOS 功能、当前手机实际编辑应用和恢复仍未验证。

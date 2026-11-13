@@ -2,18 +2,18 @@
 
 在 Mac 上展开 iPhone 的多页主屏幕，拖动应用、整理文件夹，再把确认过的布局写回手机。
 
-本 fork 基于 [humanlyj/HomeSpread](https://github.com/humanlyj/HomeSpread) 的提交 `0cfbc6866e9748105cbc3c9e743ad0b1788e6775`。这是中文 macOS 移植版，版本 `1.0.22-mac.zh.1`，保留 GPL-3.0-or-later 许可和原作者历史。来源核查见 [PROVENANCE.zh-CN.md](PROVENANCE.zh-CN.md)，原仓库的 Windows 说明见 [README.md](README.md)。
+本分支基于 [humanlyj/HomeSpread](https://github.com/humanlyj/HomeSpread) 的提交 `0cfbc6866e9748105cbc3c9e743ad0b1788e6775`。这是中文 macOS 移植版，版本 `1.0.22-mac.zh.1`，保留 GPL-3.0-or-later 许可和原作者历史。来源核查见 [PROVENANCE.zh-CN.md](PROVENANCE.zh-CN.md)，原仓库的 Windows 说明见 [README.md](README.md)。
 
 ## 启动与使用
 
 1. 在 Finder（访达）中双击 `dist/HomeSpread.app`。程序包含 Python 和 Qt，不需要另装 Python、iTunes 或 Apple Devices。
 2. 用数据线连接一台 iPhone，解锁，在手机上确认“信任此电脑”。保持连接与解锁。
 3. 点击“从设备读取”。点击“获取图标”即可显示应用图标。
-4. 若要写回，在开始编辑前点击“原样写回校验”。它会在明确确认后备份、真实写回当前布局并核对读回结果；也可能触发下述 App 资源库回填。未通过校验时禁止应用编辑。为便于故障恢复，仍可在单独确认风险后恢复同设备的校验备份。每次重新读取或操作失败后需重新校验。
+4. 若要写回，在开始编辑前点击“原样写回校验”。它会在明确确认后备份、真实写回当前布局并核对读回结果；也可能触发下述 App 资源库回填。未通过校验时禁止应用编辑。为便于故障恢复，仍可在单独确认风险后恢复同设备的校验备份；恢复后读回核对通过也会建立当前会话的编辑写入许可。每次重新读取或操作失败后需重新校验。
 5. 拖动应用调整位置；双击文件夹查看内容。按住 **⌘ Command** 点选多个应用，按 **⌘G** 新建文件夹；**⌘Z** 撤销，**⇧⌘Z** 重做。文件夹名称也可用工具栏“重命名”修改。
-6. 查看右侧修改列表，点击“应用”，阅读影响并勾选确认后，程序才会备份并写入。
+6. 查看右侧修改列表，点击“应用修改”，阅读影响并勾选确认后，程序才会备份并写入。
 
-读取、获取图标、编辑和撤销都不会修改 iPhone。确认后的“原样写回校验”“应用”或“从备份恢复”会写入。导入备份文件只供预览，不能直接写到另一台手机；恢复必须先读取对应设备，再选该设备自己的完整备份。
+读取、获取图标、编辑和撤销都不会修改 iPhone。确认后的“原样写回校验”“应用修改”或“从备份恢复”会写入。导入备份文件只供预览，不能直接写到另一台手机；恢复必须先读取对应设备，再选该设备自己的完整备份。
 
 **应用和恢复都会替换整份主屏幕布局。** iOS 可能把仅留在 App 资源库的应用重新加入主屏幕；恢复旧备份也不能撤销这一系统行为。主屏幕备份不包含应用数据、照片、壁纸或整机系统状态。
 
@@ -55,7 +55,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q
 
 测试可用 `HOMESPREAD_DATA_DIR` 和 `HOMESPREAD_CACHE_DIR` 指定隔离目录。依赖升级须重新审计、运行测试，再运行 `scripts/lock_macos.py` 更新版本快照。构建过程不修改锁文件。锁文件固定版本，未固定下载文件哈希。
 
-`.app` 使用本地 ad-hoc 签名，未经过 Apple Developer ID 签名或公证。它用于这台电脑上的本地运行；向其他电脑分发前需另行处理签名、公证及适配验证。无需关闭 Gatekeeper 或 SIP。
+`.app` 使用本地临时签名（ad-hoc），未经过 Apple Developer ID 签名或公证。它用于这台电脑上的本地运行；向其他电脑分发前需另行处理签名、公证及适配验证。无需关闭 Gatekeeper 或 SIP。
 
 ## 验证边界
 
@@ -67,4 +67,4 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q
 
 ## 许可与源码
 
-许可证原文见 [LICENSE](LICENSE)。macOS 包包含本次修改的对应源码、依赖清单及第三方许可，不将上游仓库链接冒充本地修改版源码。重新分发时请一并提供这些材料，并遵守相应许可证。
+许可证原文见 [LICENSE](LICENSE)，中文阅读说明见 [LICENSE.zh-CN.md](LICENSE.zh-CN.md)，全部文档入口见 [文档索引](DOCUMENTATION.zh-CN.md)。macOS 包包含本次修改的对应源码、依赖清单及第三方许可，不将上游仓库链接冒充本地修改版源码。重新分发时请一并提供这些材料，并遵守相应许可证。

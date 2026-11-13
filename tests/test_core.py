@@ -2058,13 +2058,8 @@ def test_the_device_verifier_stays_read_only_without_apply():
 
 
 @windows_contract
-def test_the_privacy_policy_tells_the_whole_truth_in_both_languages():
-    """방침이 실제 동작과 어긋나면 스토어 심사에서 걸리고, 무엇보다 거짓말이 된다.
-
-    그래서 코드가 실제로 하는 일 — 남기는 폴더 넷, 기기와 말하는 주소, 밖으로
-    나가는 두 경우 — 이 전부 적혀 있는지 확인한다. 영어도 함께 확인하는 이유는
-    Partner Center 심사자가 읽는 쪽이 그쪽이기 때문이다.
-    """
+def test_the_privacy_policy_describes_both_platforms_in_chinese():
+    """中文隐私说明必须覆盖实际存储、两个平台的连接地址和外部链接。"""
     text = (ROOT / "PRIVACY.md").read_text(encoding="utf-8")
 
     for kept in ("backups", "logs", "icons", "settings.json"):
@@ -2074,7 +2069,8 @@ def test_the_privacy_policy_tells_the_whole_truth_in_both_languages():
         "밖으로 나가는 경우 누락"
     )
     assert "UDID" in text, "기기 식별자를 다룬다는 사실을 숨기고 있다"
-    assert "Privacy Policy (English)" in text, "심사자가 읽을 영어본이 없다"
+    assert "隐私说明" in text and "/var/run/usbmuxd" in text
+    assert "pairing/" in text and "HOMESPREAD_DATA_DIR" in text
 
     # 방침에 적은 파일 이름이 코드와 어긋나면, 어느 한쪽이 낡은 것이다.
     from ipsm.i18n import settings_path

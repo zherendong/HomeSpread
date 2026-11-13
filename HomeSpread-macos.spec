@@ -7,7 +7,7 @@ root = Path(SPECPATH)
 resources = root / "build" / "macos-resources"
 datas = copy_metadata("pymobiledevice3")
 datas += [(str(root / name), ".") for name in
-          ("LICENSE", "PRIVACY.md", "PRIVACY.zh-CN.md", "README.zh-CN.md", "SECURITY_AUDIT.zh-CN.md")]
+          ("LICENSE", "LICENSE.zh-CN.md", "PRIVACY.md", "PRIVACY.zh-CN.md", "README.md", "README.zh-CN.md", "DOCUMENTATION.zh-CN.md", "PROVENANCE.zh-CN.md", "SECURITY_AUDIT.zh-CN.md")]
 datas += [(str(resources / name), ".") for name in
           ("THIRD-PARTY-NOTICES.md", "HomeSpread-source.zip", "dependency-inventory.json")]
 datas += [(str(resources / "third_party_licenses"), "third_party_licenses")]

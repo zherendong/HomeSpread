@@ -2,29 +2,27 @@
 __pycache__/
 *.pyc
 
-# 실기기 세션 산출물 — 기기 정보가 들어 있으므로 공유 대상이 아니다.
+# 真机诊断产物含设备信息，不作为公开源码提交。
 logs/
 backups/
 
-# 아이콘 그림 — 기기에서 받아 온 남의 저작물이다. 공개 저장소에 올리지 않는다.
+# 图标来自用户设备，不上传公开仓库。
 cache/
 
-# 빌드 산출물
+# 构建产物
 build*/
 dist*/
 
-# 고른 언어 등 이 PC 의 설정
+# 本机语言等设置
 settings.json
 
-# 내려받은 빌드 도구(Windows SDK BuildTools). Microsoft 것이고 용량이 크다 —
-# 필요하면 누구나 NuGet 에서 같은 것을 받을 수 있으므로 저장소에 싣지 않는다.
+# 下载的 Windows SDK BuildTools 可按需从 NuGet 获取，不纳入源码。
 tools/
 
-# 스토어 그림용 시연 배치와 그 아이콘. 2026-08-31 부터는 기기 자료가 아니라 전부
-# 지어낸 것이지만, 스크립트 두 개로 언제든 똑같이 다시 만들어지는 산출물이라
-# 저장소에 두지 않는다. (make_demo_layout.py / make_demo_icons.py)
+# 商店截图使用的虚构布局和图标可由 make_demo_layout.py / make_demo_icons.py
+# 重新生成。自 2026-08-31 起它们不再使用真实设备数据。
 _workspace/demo-layout.json
 _workspace/demo-cache/
 
-# Device trust credentials are private runtime data.
+# 设备信任凭据属于私有运行数据。
 pairing/
