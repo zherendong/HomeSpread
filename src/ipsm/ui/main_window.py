@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from pathlib import Path
 from typing import Any, Optional
 
@@ -50,6 +51,10 @@ from .tiles import IconCache
 from .worker import DeviceWorker
 
 log = logging.getLogger("ui.window")
+
+
+def _key_hint(text: str) -> str:
+    return text.replace("Ctrl", "⌘") if sys.platform == "darwin" else text
 
 MIN_TILE = 22
 MAX_TILE = 120
@@ -251,6 +256,7 @@ class ApplyDialog(QDialog):
             )
         warnings.append(tr("• 적용 중에는 케이블을 뽑지 마세요. 1초 남짓 걸립니다."))
         notice = QLabel("\n".join(warnings))
+        notice.setTextFormat(Qt.TextFormat.PlainText)
         notice.setWordWrap(True)
         notice.setStyleSheet(
             "background:#2b2417; border:1px solid #6a5620; border-radius:6px;"
@@ -374,6 +380,7 @@ class MainWindow(QMainWindow):
         # 항등 검사를 통과하지 못한 홈화면은 편집해도 쓰지 않는다. 경고만 띄우고
         # 버튼은 살려 두면, 경고를 닫은 사용자에게는 아무 일도 없었던 것과 같다.
         self.writable = False
+        self.write_verified = False
         self.installed: dict[str, str] = {}  # 번들 ID -> 이름 (기기에서 받은 설치 목록)
 
         self.worker = DeviceWorker(self.root)
@@ -430,7 +437,7 @@ class MainWindow(QMainWindow):
         self.act_add_page.triggered.connect(self._add_page)
         self.act_group = QAction(tr("묶기"), self)
         self.act_group.setShortcut(QKeySequence("Ctrl+G"))
-        self.act_group.setToolTip(tr("고른 앱들을 새 묶음(폴더)으로 (Ctrl 을 누른 채 눌러 여러 개 고름)"))
+        self.act_group.setToolTip(_key_hint(tr("고른 앱들을 새 묶음(폴더)으로 (Ctrl 을 누른 채 눌러 여러 개 고름)")))
         self.act_group.triggered.connect(self._group)
         self.act_rename = QAction(tr("이름 바꾸기"), self)
         self.act_rename.setShortcut(QKeySequence("F2"))
@@ -438,6 +445,8 @@ class MainWindow(QMainWindow):
         self.act_rename.triggered.connect(self._rename)
         self.act_apply = QAction(tr("적용"), self)
         self.act_apply.triggered.connect(self._apply)
+        self.act_compatibility = QAction(tr("Write compatibility test"), self)
+        self.act_compatibility.triggered.connect(self._check_compatibility)
         self.act_restore = QAction(tr("백업으로 복원"), self)
         self.act_restore.triggered.connect(self._restore)
         self.act_settings = QAction(tr("설정"), self)
@@ -457,6 +466,7 @@ class MainWindow(QMainWindow):
         bar.addAction(self.act_group)
         bar.addAction(self.act_rename)
         bar.addSeparator()
+        bar.addAction(self.act_compatibility)
         bar.addAction(self.act_apply)
         bar.addAction(self.act_restore)
         bar.addSeparator()
@@ -585,6 +595,7 @@ class MainWindow(QMainWindow):
         log.info("언어를 바꿨다: %s", code)
 
     def retranslate(self) -> None:
+        self.act_compatibility.setText(tr("Write compatibility test"))
         """언어가 바뀌면 창의 말을 전부 다시 칠한다.
 
         Qt 는 한 번 넣은 글자를 스스로 바꾸지 않는다. 그래서 **문구를 넣은 자리마다**
@@ -598,7 +609,7 @@ class MainWindow(QMainWindow):
         self.act_redo.setText(tr("다시 실행"))
         self.act_add_page.setText(tr("페이지 추가"))
         self.act_group.setText(tr("묶기"))
-        self.act_group.setToolTip(tr("고른 앱들을 새 묶음(폴더)으로 (Ctrl 을 누른 채 눌러 여러 개 고름)"))
+        self.act_group.setToolTip(_key_hint(tr("고른 앱들을 새 묶음(폴더)으로 (Ctrl 을 누른 채 눌러 여러 개 고름)")))
         self.act_rename.setText(tr("이름 바꾸기"))
         self.act_rename.setToolTip(tr("고른 묶음의 이름을 바꾼다"))
         self.act_apply.setText(tr("적용"))
@@ -640,6 +651,7 @@ class MainWindow(QMainWindow):
         self.worker.installedListed.connect(self._on_installed)
         self.worker.iconsUpdated.connect(self._on_icons)
         self.worker.applied.connect(self._on_applied)
+        self.worker.compatibilityChecked.connect(self._on_compatibility)
         self.worker.restoredFrom.connect(self._on_restored)
         self.worker.progressed.connect(self._on_progress)
         self.worker.busyChanged.connect(self._on_busy)
@@ -794,10 +806,13 @@ class MainWindow(QMainWindow):
             has and not busy and self.doc.can_group(sorted(self.selection)) is None
         )
         self.act_rename.setEnabled(has and not busy and self._rename_target() is not None)
-        self.act_apply.setEnabled(dirty and self.writable and not busy)
-        self.act_icons.setEnabled(has and not busy)
+        connected = self._device[0] == "device"
+        self.act_apply.setEnabled(dirty and self.writable and self.write_verified and connected and not busy)
+        self.act_compatibility.setEnabled(has and self.writable and connected and not busy and not dirty)
+        self.act_icons.setEnabled(has and connected and not busy)
         self.act_load.setEnabled(not busy)
-        self.act_restore.setEnabled(not busy)
+        self.act_open.setEnabled(not busy)
+        self.act_restore.setEnabled(connected and not busy)
         mark = " •" if dirty else ""
         self.setWindowTitle(
             f"{product.NAME} {VERSION_TEXT} — {self.device_summary}{mark}"
@@ -935,7 +950,7 @@ class MainWindow(QMainWindow):
             self.folder_panel.set_selection(self.selection)
         if len(self.selection) > 1:
             self.statusBar().showMessage(
-                tr("{n}개 골랐습니다 — 묶기(Ctrl+G)로 하나로 묶을 수 있습니다.").format(
+                _key_hint(tr("{n}개 골랐습니다 — 묶기(Ctrl+G)로 하나로 묶을 수 있습니다.")).format(
                     n=len(self.selection)
                 )
             )
@@ -1040,7 +1055,8 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, tr("열 수 없습니다"), str(exc))
             return
         self._device = ("file", Path(path).name)
-        self._set_document(state, self.metrics)
+        self.installed = {}
+        self._set_document(state, None)
 
     def _fetch_icons(self) -> None:
         if self.doc is None:
@@ -1048,7 +1064,7 @@ class MainWindow(QMainWindow):
         self.worker.fetch_icons(wanted_icons(self.doc))
 
     def _apply(self) -> None:
-        if self.doc is None:
+        if self.doc is None or not self.write_verified:
             return
         changes = self.doc.changes()
         if not changes:
@@ -1057,9 +1073,21 @@ class MainWindow(QMainWindow):
         dialog = ApplyDialog(changes, [name for _bid, name in self._unplaced()], self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
-        self.worker.apply(self.doc.to_state(), reason="before-edit")
+        if not self.writable or self._device[0] != "device" or self.worker.busy:
+            return
+        self.worker.apply(self.doc.to_state(), reason="before-edit", expected_state=self.doc.origin)
+
+    def _check_compatibility(self) -> None:
+        if self.doc is None or self.doc.dirty or not self.writable or self.worker.busy or self._device[0] != "device":
+            return
+        dialog = ApplyDialog([tr("Write the current layout back unchanged, then read it again to verify compatibility. This is a real write to the iPhone.")], [name for _bid, name in self._unplaced()], self)
+        dialog.setWindowTitle(tr("Write compatibility test"))
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.worker.check_compatibility(self.doc.origin)
 
     def _restore(self) -> None:
+        if self._device[0] != "device" or self.worker.busy:
+            return
         backups = self.worker.backups.list_backups()
         if not backups:
             QMessageBox.information(self, tr("백업 없음"), tr("아직 만들어진 백업이 없습니다."))
@@ -1069,25 +1097,24 @@ class MainWindow(QMainWindow):
         )
         if not path:
             return
-        answer = QMessageBox.question(
-            self,
-            tr("백업으로 복원"),
-            tr(
-                "{name} 시점으로 홈화면을 되돌립니다.\n"
-                "복원도 쓰기이므로, 복원 직전 상태를 먼저 백업합니다. 계속할까요?"
-            ).format(name=Path(path).name),
-        )
-        if answer != QMessageBox.StandardButton.Yes:
+        changes = [tr("Restore the Home Screen from backup: {name}").format(name=Path(path).name)]
+        if not self.write_verified:
+            changes.append(tr("Write compatibility is unverified or failed. Recovery remains available, but restoration is another full write and may fail."))
+        dialog = ApplyDialog(changes, parent=self)
+        dialog.setWindowTitle(tr("백업으로 복원"))
+        if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         self.worker.restore_backup(Path(path))
 
     # ------------------------------------------------------------- 워커 응답
 
     def _on_loaded(self, state: object, metrics: object, info: object) -> None:
+        self.write_verified = False
         if info is not None:
             summary = getattr(info, "summary", None)
             self._device = ("device", summary()) if summary else ("connected", "")
         self._set_document(list(state), dict(metrics) if metrics else None)
+        self.statusBar().showMessage(tr("Read complete. Before editing, run the write compatibility test; it requires confirmation and writes to the iPhone."))
 
     def _on_icons(self, fetched: int, requested: int) -> None:
         self.icons.invalidate()
@@ -1109,6 +1136,7 @@ class MainWindow(QMainWindow):
     def _on_applied(self, result: object) -> None:
         payload = dict(result)  # type: ignore[arg-type]
         comparison = payload["comparison"]
+        self.write_verified = comparison.safe
         backup = payload["backup"]
         state = payload["state"]
 
@@ -1123,6 +1151,9 @@ class MainWindow(QMainWindow):
             )
             lines.extend(comparison.lost[:5])
             lines.extend(comparison.moved[:5])
+            if comparison.changed:
+                lines.append(tr("Unexpected item content changes: {n}").format(n=len(comparison.changed)))
+                lines.extend(comparison.changed[:5])
         if comparison.added:
             lines.append(
                 tr(
@@ -1136,22 +1167,21 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(" · ".join(lines[:2]))
         box = QMessageBox(self)
         box.setWindowTitle(tr("적용 완료") if comparison.safe else tr("적용했지만 확인이 필요합니다"))
+        box.setTextFormat(Qt.TextFormat.PlainText)
         box.setIcon(
             QMessageBox.Icon.Information if comparison.safe else QMessageBox.Icon.Warning
         )
         box.setText("\n".join(lines))
         box.exec()
 
+    def _on_compatibility(self, result: object) -> None:
+        self._on_applied(result)
+        self.statusBar().showMessage(tr("Compatibility test passed. You can now edit and apply changes.") if self.write_verified else tr("Compatibility test failed. Applying edits is disabled. You may explicitly restore a verified backup for recovery."))
+
     def _on_restored(self, result: object) -> None:
         payload = dict(result)  # type: ignore[arg-type]
-        self._set_document(list(payload["state"]), self.metrics)
-        QMessageBox.information(
-            self,
-            tr("복원 완료"),
-            tr("복원 직전 상태를 {name} 로 백업했습니다.").format(
-                name=Path(payload["backup"].path).name
-            ),
-        )
+        # Restores receive the same loss/movement verification as ordinary edits.
+        self._on_applied(payload)
 
     def _on_progress(self, message: str, done: int, total: int) -> None:
         self.statusBar().showMessage(message)
@@ -1171,9 +1201,12 @@ class MainWindow(QMainWindow):
         self._update_actions()
 
     def _on_failed(self, message: str, action: str) -> None:
+        self.write_verified = False
+        self._update_actions()
         self.statusBar().showMessage(message)
         box = QMessageBox(self)
         box.setWindowTitle(tr("문제가 생겼습니다"))
+        box.setTextFormat(Qt.TextFormat.PlainText)
         box.setIcon(QMessageBox.Icon.Warning)
         box.setText(message)
         if action:
@@ -1183,6 +1216,10 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------ 종료
 
     def closeEvent(self, event) -> None:  # noqa: N802
+        if self.worker.busy:
+            self.statusBar().showMessage(tr("A device operation is running. Wait for it to finish before closing."))
+            event.ignore()
+            return
         if self.doc is not None and self.doc.dirty:
             answer = QMessageBox.question(
                 self,

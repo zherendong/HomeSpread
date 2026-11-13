@@ -1,5 +1,7 @@
 # HomeSpread
 
+> **中文 macOS fork：** 本仓库保留 [humanlyj/HomeSpread](https://github.com/humanlyj/HomeSpread) 的原始历史和 GPL 许可，并加入中文界面、macOS 适配及安全修复。启动和构建见 [README.zh-CN.md](README.zh-CN.md)，来源核查见 [PROVENANCE.zh-CN.md](PROVENANCE.zh-CN.md)。下文保留上游 Windows 文档，历史真机结果不代表本移植版已通过写入验证。
+
 *Mobile layout manager for iOS*
 
 여러 페이지로 흩어진 iPhone 홈화면을 PC 한 화면에 펼쳐 보고, 드래그로 정리하는 Windows 앱.

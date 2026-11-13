@@ -1,0 +1,6 @@
+#!/bin/bash
+set -euo pipefail
+cd "$(dirname "$0")"
+umask 077
+export PYTHONPATH="$PWD/src"
+exec .venv/bin/python -m ipsm.probe "$@"

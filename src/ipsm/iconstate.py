@@ -15,6 +15,8 @@ setIconState 는 부분 갱신이 아니라 **전체 덮어쓰기**다. 우리�
 from __future__ import annotations
 
 import copy
+import hashlib
+import plistlib
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Iterator, Optional
@@ -174,22 +176,27 @@ class IconState:
         """로그와 프로브 출력용 요약. 원본 전체를 로그에 쏟지 않기 위한 것이다."""
         tally = self.counts()
         lines = [
-            f"페이지 {len(self.pages)}개, 독 {len(self.dock)}칸",
-            f"앱 {tally['app']}개 · 폴더 {tally['folder']}개 · "
-            f"빈칸 {tally['empty']}개 · 알 수 없는 항목 {tally['unknown']}개",
+            tr("페이지 {pages}개, 독 {dock}칸").format(pages=len(self.pages), dock=len(self.dock)),
+            tr("앱 {apps}개 · 폴더 {folders}개 · 빈칸 {empty}개 · 알 수 없는 항목 {unknown}개").format(
+                apps=tally["app"], folders=tally["folder"], empty=tally["empty"], unknown=tally["unknown"]
+            ),
         ]
         offloaded = sum(1 for i in self.iter_items() if i.kind is ItemKind.APP and not i.installed)
         clips = sum(1 for i in self.iter_items() if i.is_web_clip)
         if offloaded or clips:
-            lines.append(f"(그 중 오프로드된 앱 {offloaded}개 · 웹 클립 {clips}개)")
+            lines.append(tr("(그 중 오프로드된 앱 {offloaded}개 · 웹 클립 {clips}개)").format(
+                offloaded=offloaded, clips=clips
+            ))
         if self.dock:
-            lines.append("  독: " + ", ".join(item.label for item in self.dock))
+            lines.append(tr("  독: {items}").format(items=", ".join(item.label for item in self.dock)))
         for index, page in enumerate(self.pages, start=1):
             labels = [item.label for item in page]
             preview = ", ".join(labels[:8])
             if len(labels) > 8:
-                preview += f", … (총 {len(labels)}칸)"
-            lines.append(f"  {index}페이지 ({len(page)}칸): {preview}")
+                preview += tr(", … (총 {count}칸)").format(count=len(labels))
+            lines.append(tr("  {index}페이지 ({count}칸): {preview}").format(
+                index=index, count=len(page), preview=preview
+            ))
         return "\n".join(lines)
 
     def unknown_samples(self, limit: int = 5) -> list[Any]:
@@ -229,7 +236,7 @@ def _normalize(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [_normalize(v) for v in value]
     if isinstance(value, bytes):
-        return value.hex()
+        return ("__plist_bytes__", value.hex())
     return value
 
 
@@ -239,25 +246,27 @@ def diff_summary(before: Any, after: Any) -> list[str]:
     notes: list[str] = []
 
     if len(left.pages) != len(right.pages):
-        notes.append(f"페이지 수: {len(left.pages)} → {len(right.pages)}")
+        notes.append(tr("페이지 수: {before} → {after}").format(before=len(left.pages), after=len(right.pages)))
     if len(left.dock) != len(right.dock):
-        notes.append(f"독 항목 수: {len(left.dock)} → {len(right.dock)}")
+        notes.append(tr("독 항목 수: {before} → {after}").format(before=len(left.dock), after=len(right.dock)))
 
     gone = left.bundle_ids() - right.bundle_ids()
     added = right.bundle_ids() - left.bundle_ids()
     if gone:
-        notes.append(f"사라진 앱 {len(gone)}개: {', '.join(sorted(gone)[:10])}")
+        notes.append(tr("사라진 앱 {count}개: {items}").format(count=len(gone), items=", ".join(sorted(gone)[:10])))
     if added:
-        notes.append(f"새로 나타난 앱 {len(added)}개: {', '.join(sorted(added)[:10])}")
+        notes.append(tr("새로 나타난 앱 {count}개: {items}").format(count=len(added), items=", ".join(sorted(added)[:10])))
 
     left_counts, right_counts = left.counts(), right.counts()
     if left_counts["unknown"] != right_counts["unknown"]:
         notes.append(
-            f"알 수 없는 항목 수: {left_counts['unknown']} → {right_counts['unknown']}"
+            tr("알 수 없는 항목 수: {before} → {after}").format(
+                before=left_counts["unknown"], after=right_counts["unknown"]
+            )
         )
 
     if not notes:
-        notes.append("구조적 차이 없음")
+        notes.append(tr("구조적 차이 없음"))
     return notes
 
 
@@ -274,19 +283,21 @@ def value_diff(before: Any, after: Any, limit: int = 20) -> list[str]:
         if len(out) >= limit:
             return
         if type(a) is not type(b):
-            out.append(f"{path}: 타입 {type(a).__name__} -> {type(b).__name__}")
+            out.append(tr("{path}: 타입 {before} -> {after}").format(
+                path=path, before=type(a).__name__, after=type(b).__name__
+            ))
             return
         if isinstance(a, dict):
             for key in sorted(set(a) | set(b), key=str):
                 if key not in a:
-                    out.append(f"{path}.{key}: (없음) -> {b[key]!r}")
+                    out.append(tr("{path}.{key}: (없음) -> {after!r}").format(path=path, key=key, after=b[key]))
                 elif key not in b:
-                    out.append(f"{path}.{key}: {a[key]!r} -> (없음)")
+                    out.append(tr("{path}.{key}: {before!r} -> (없음)").format(path=path, key=key, before=a[key]))
                 else:
                     walk(a[key], b[key], f"{path}.{key}")
         elif isinstance(a, list):
             if len(a) != len(b):
-                out.append(f"{path}: 항목 수 {len(a)} -> {len(b)}")
+                out.append(tr("{path}: 항목 수 {before} -> {after}").format(path=path, before=len(a), after=len(b)))
                 return
             for index, (left, right) in enumerate(zip(a, b)):
                 walk(left, right, f"{path}[{index}]")
@@ -313,11 +324,12 @@ class WriteComparison:
     lost: list[str]
     added: list[str]
     moved: list[str]
+    changed: list[str] = field(default_factory=list)
 
     @property
     def safe(self) -> bool:
         """사용자의 배치가 보존되었는가. 추가는 여기에 포함하지 않는다."""
-        return not self.lost and not self.moved
+        return not self.lost and not self.moved and not self.changed
 
     @property
     def identical(self) -> bool:
@@ -339,7 +351,10 @@ def _position_map(state: list[Any]) -> dict[str, tuple]:
                 return f"app:{identifier}"
             if KEY_ICON_LISTS in raw:
                 return f"folder:{raw.get(KEY_DISPLAY_NAME)}"
-        return f"raw:{raw!r}"[:120]
+        # A display-length truncation can hide changes beyond the first 120 chars.
+        # Hash the full payload; the UI receives a short stable identifier.
+        payload = plistlib.dumps(raw, fmt=plistlib.FMT_BINARY, sort_keys=True)
+        return "raw:" + hashlib.sha256(payload).hexdigest()[:24]
 
     def walk(items: list[Any], prefix: tuple) -> None:
         for index, raw in enumerate(items):
@@ -382,4 +397,16 @@ def compare_after_write(before: list[Any], after: list[Any]) -> WriteComparison:
         for key in left
         if key in right and left[key] != right[key]
     ]
-    return WriteComparison(lost=sorted(lost), added=sorted(added), moved=sorted(moved))
+    def at(state: list[Any], position: tuple) -> Any:
+        raw = state[position[0]][position[1]]
+        for offset in range(2, len(position), 2):
+            raw = raw[KEY_ICON_LISTS][position[offset]][position[offset + 1]]
+        if isinstance(raw, dict) and KEY_ICON_LISTS in raw:
+            # Children are compared independently; folder metadata still matters.
+            return {key: value for key, value in raw.items() if key != KEY_ICON_LISTS}
+        return raw
+
+    changed = [key for key in left if key in right
+               and not deep_equal(at(before, left[key]), at(after, right[key]))]
+    return WriteComparison(lost=sorted(lost), added=sorted(added), moved=sorted(moved),
+                           changed=sorted(changed))

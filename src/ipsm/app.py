@@ -24,6 +24,8 @@
 from __future__ import annotations
 
 import logging
+import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -47,6 +49,8 @@ def _close_splash() -> None:
     않으면 창 위에 그대로 남는다. 소스에서 실행할 때는 `pyi_splash` 자체가 없으므로
     조용히 지나간다.
     """
+    if sys.platform == "darwin":
+        return  # macOS bundle uses Qt directly; PyInstaller Splash is Windows-only here.
     try:
         import pyi_splash  # type: ignore[import-not-found]
     except ImportError:
@@ -77,9 +81,17 @@ def _fatal(message: str) -> int:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description=f"{product.NAME} — iPhone 桌面整理工具")
+    parser.add_argument("--language", choices=("zh_CN", "en", "ko"))
+    parser.add_argument("--smoke-test", action="store_true", help="启动界面并自动退出，不连接 iPhone")
+    parser.add_argument("--screenshot", type=Path, help="配合 --smoke-test 保存窗口截图")
+    parser.add_argument("--demo", action="store_true", help="打开虚构演示布局，不连接 iPhone")
+    args = parser.parse_args()
+    if os.name == "posix":
+        os.umask(0o077)
     # 언어를 가장 먼저 고른다. 시작하다 실패했을 때 뜨는 말도 사용자의 말이어야 한다.
     # 설정을 못 읽어도(자리가 없거나 깨졌어도) PC 언어로 되돌아가므로 여기서 막히지 않는다.
-    language = i18n.start()
+    language = i18n.start(args.language)
 
     # logs · backups 를 만들어 둔다. 기기에 손대기 전에 확인한다 — 백업을 쓸 수
     # 없는 자리라면 그 사실을 지금 알아야 하고, 아직 아무것도 쓰지 않은 때다.
@@ -105,17 +117,54 @@ def main() -> int:
         return 2
 
     from ipsm.ui.main_window import MainWindow
+    from PySide6.QtCore import QLibraryInfo, QLocale, QTimer, QTranslator, QLockFile
 
     app = QApplication(sys.argv)
     app.setApplicationName(product.NAME)
     app.setApplicationVersion(VERSION_TEXT)
+    # Keep two application windows from modifying one device at the same time.
+    instance_lock = QLockFile(str(root / ".instance.lock"))
+    instance_lock.setStaleLockTime(0)
+    if not instance_lock.tryLock(0):
+        return _fatal(tr("The application is already running. Switch to its existing window."))
+    qt_translator = QTranslator(app)
+
+    def translate_qt() -> None:
+        app.removeTranslator(qt_translator)
+        code = i18n.language()
+        QLocale.setDefault(QLocale(code))
+        if qt_translator.load("qtbase_" + code, QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)):
+            app.installTranslator(qt_translator)
+
+    translate_qt()
+    i18n.on_language_changed(translate_qt)
     window = MainWindow(root)
+    if args.demo:
+        from ipsm.demo import demo_state
+
+        window._device = ("file", tr("Demo layout (fictional apps)"))
+        window._set_document(demo_state(), None)
     # 창을 먼저 만들고, 보이기 직전에 그림을 내린다. 순서를 뒤집으면 그림이 사라진
     # 뒤 창이 뜰 때까지 빈 바탕화면이 남는다.
     _close_splash()
     window.show()
+    if args.smoke_test:
+        def finish_smoke() -> None:
+            if args.screenshot:
+                args.screenshot.parent.mkdir(parents=True, exist_ok=True)
+                if not window.grab().save(str(args.screenshot)):
+                    log.error("Screenshot save failed")
+                    app.exit(4)
+                    return
+            window.close()
+        QTimer.singleShot(2500, finish_smoke)
     log.info("창을 열었다. 로그: %s", session.log_path)
-    return app.exec()
+    try:
+        return app.exec()
+    finally:
+        i18n.off_language_changed(translate_qt)
+        window.worker.shutdown()
+        instance_lock.unlock()
 
 
 if __name__ == "__main__":

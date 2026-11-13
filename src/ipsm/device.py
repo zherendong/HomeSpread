@@ -10,7 +10,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
+import sys
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
@@ -23,6 +25,8 @@ from pymobiledevice3.services.springboard import SpringBoardServicesService
 from . import product
 from .i18n import defer, tr
 from .logging_setup import current_session, mask, step
+from .paths import data_root
+from .safeio import private_directory
 
 log = logging.getLogger("device")
 
@@ -112,6 +116,14 @@ _TRANSLATIONS: list[tuple[type[BaseException], str, str]] = [
 
 def translate(exc: BaseException) -> DeviceError:
     """라이브러리 예외를 사용자 언어로 옮긴다. 모르는 예외도 안내 없이 새지 않게 한다."""
+    if isinstance(exc, DeviceError):
+        return exc
+    if sys.platform == "darwin" and isinstance(exc, pmd_exc.ConnectionFailedToUsbmuxdError):
+        return DeviceError(
+            tr("The Mac cannot reach Apple's iPhone connection service."),
+            tr("Reconnect your iPhone, unlock it and select Trust in Finder and on the iPhone. Restart the Mac if needed."),
+            cause=exc,
+        )
     for exc_type, message, action in _TRANSLATIONS:
         if isinstance(exc, exc_type):
             return DeviceError(tr(message), tr(action), cause=exc)
@@ -127,24 +139,35 @@ _LABEL = product.NAME
 
 
 async def _create_lockdown(serial: Optional[str]):
-    """USB 를 먼저 시도한다.
-
-    Wi-Fi 동기화가 켜져 있으면 같은 iPhone 이 usbmux 목록에 USB 와 Network 로 두 번 나타난다.
-    Wi-Fi 경로는 느리고 기기가 잠들면 끊긴다. 홈화면 plist 는 100KB 에 가깝고, 무엇보다
-    쓰기 도중 끊기는 것은 이 프로젝트에서 가장 피하고 싶은 상황이다.
-
-    '기기가 없다' 계열 실패일 때만 전체 대상으로 되시도한다. 잠김·미신뢰 같은 실패는
-    경로를 바꿔도 똑같이 실패하므로, 같은 오류를 두 번 내지 않고 그대로 올려보낸다.
-    """
-    try:
-        return await create_using_usbmux(serial=serial, label=_LABEL, connection_type="USB")
-    except (
-        pmd_exc.NoDeviceConnectedError,
-        pmd_exc.DeviceNotFoundError,
-        pmd_exc.ConnectionFailedError,
-    ) as exc:
-        log.debug("USB 경로에 기기가 없다. 전체 대상으로 재시도한다: %r", exc)
-        return await create_using_usbmux(serial=serial, label=_LABEL)
+    """Use one explicitly identified USB device; never silently fall back to Wi-Fi."""
+    devices = await usbmux.list_devices()
+    usb = {str(d.serial): d for d in devices if d.connection_type == "USB" and d.serial}
+    if serial is not None:
+        matches = [key for key in usb if key.replace("-", "").lower() == serial.replace("-", "").lower()]
+        if len(matches) != 1:
+            raise DeviceError(
+                tr("The selected iPhone is not connected by USB."),
+                tr("Connect the intended iPhone with a data cable and try again."),
+            )
+        selected = matches[0]
+    else:
+        if not usb:
+            raise DeviceError(
+                tr("No iPhone is connected by USB."),
+                tr("Connect the intended iPhone with a data cable and try again."),
+            )
+        if len(usb) != 1:
+            raise DeviceError(
+                tr("More than one iPhone is connected by USB."),
+                tr("Disconnect the other devices before reading or changing a layout."),
+            )
+        selected = next(iter(usb))
+    pairing_dir = data_root() / "pairing"
+    private_directory(pairing_dir)
+    return await create_using_usbmux(
+        serial=selected, label=_LABEL, connection_type="USB",
+        pairing_records_cache_folder=pairing_dir,
+    )
 
 
 # 기본 앱(System) 232개 중 홈화면에 뜨는 것은 40여 개뿐이다. 나머지는 화면 없는
@@ -214,9 +237,9 @@ class DeviceInfo:
     raw: dict[str, Any] = field(default_factory=dict, repr=False)
 
     def summary(self) -> str:
-        return (
-            f"{self.device_name} ({self.product_type}), iOS {self.ios_version} "
-            f"[{self.build_version}], {self.connection_type} 연결, UDID {self.udid_masked}"
+        return tr("{name} ({model}), iOS {ios} [{build}], {connection} connection, UDID {udid}").format(
+            name=self.device_name, model=self.product_type, ios=self.ios_version,
+            build=self.build_version, connection=self.connection_type, udid=self.udid_masked,
         )
 
 
@@ -241,6 +264,7 @@ class DeviceBridge:
     def __init__(self) -> None:
         self._lockdown = None
         self.info: Optional[DeviceInfo] = None
+        self.device_key: Optional[str] = None
 
     # ------------------------------------------------------------- discovery
 
@@ -258,6 +282,8 @@ class DeviceBridge:
             # 서로 다른 기기도 같아 보인다.
             grouped: dict[str, dict[str, Any]] = {}
             for d in devices:
+                if str(getattr(d, "connection_type", "")) != "USB":
+                    continue
                 serial = str(getattr(d, "serial", "") or "")
                 entry = grouped.setdefault(
                     serial,
@@ -286,6 +312,14 @@ class DeviceBridge:
             except Exception as exc:
                 raise translate(exc) from exc
 
+            udid = str(getattr(self._lockdown, "udid", "") or "")
+            if not udid:
+                await self.close()
+                raise DeviceError(
+                    tr("Cannot identify the connected iPhone safely. Reconnect and read it again."),
+                    tr("Connect the intended iPhone with a data cable and try again."),
+                )
+            self.device_key = hashlib.sha256(udid.replace("-", "").lower().encode("ascii")).hexdigest()
             values = dict(getattr(self._lockdown, "all_values", None) or {})
             safe = {k: values.get(k) for k in _SAFE_KEYS if k in values}
 
@@ -500,3 +534,4 @@ class DeviceBridge:
             except Exception as exc:  # 종료 실패는 진단 정보로만 남긴다
                 log.debug("연결 종료 중 예외: %r", exc)
             self._lockdown = None
+            self.device_key = None

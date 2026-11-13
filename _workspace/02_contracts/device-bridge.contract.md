@@ -1,5 +1,17 @@
 # 계약: device-bridge
 
+## macOS 中文移植版接口补充（2026-11-13）
+
+本节描述当前本地移植版，优先于下方保留的上游历史实现记录。
+
+- `DeviceBridge.device_key: str | None` 为规范化 UDID 的 SHA-256。连接成功后设置，关闭后清空；仅用于本地备份设备隔离，不将原始 UDID 写进报告。
+- `connect()` 只使用 USB。未指定设备且发现多部 USB 设备时拒绝连接，不默认选第一部，不静默回退到 Wi-Fi。
+- macOS 通过系统 usbmuxd 服务连接；连接失败给出 Finder、解锁和信任提示。库创建的配对缓存存入数据目录下 `pairing/`，目录权限 0700，不进入诊断压缩包或分发制品。
+- 应用、诊断和实机验证脚本均不得直接调用 `set_icon_state`；唯一上层写入入口是 `backup.guarded_write`。
+- 当前 Mac/iPhone 已完成只读连接和备份验证，未进行实际桌面写入。下方其它型号/系统的实测属于上游历史证据。
+
+## 上游历史约定与验证记录
+
 **소유자:** ios-protocol-specialist
 **구현:** `src/ipsm/device.py`
 **상태:** 실기기 확인됨 (iPhone 14 / iOS 26.1, 2026-08-19~20)

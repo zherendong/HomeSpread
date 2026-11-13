@@ -20,6 +20,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 import logging
 import platform
@@ -28,11 +29,14 @@ import re
 import shutil
 import sys
 import time
+import uuid
 import zipfile
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterator, Optional
+
+from .safeio import atomic_private_write, private_directory
 
 _LOG_FORMAT = "%(asctime)s %(levelname)-7s [%(name)s] %(message)s"
 _DATE_FORMAT = "%H:%M:%S"
@@ -45,7 +49,7 @@ KEEP_SESSIONS = 20
 
 #: 우리가 만든 세션 기록만 골라내는 자물쇠. 사용자가 `logs/` 에 따로 둔 파일은
 #: 이 모양을 갖지 않으므로 정리 대상이 되지 않는다 — 남의 파일을 지우면 안 된다.
-_SESSION_STEM = re.compile(r"^.+_\d{8}_\d{6}$")
+_SESSION_STEM = re.compile(r"^[A-Za-z0-9_-]+_(\d{8}_\d{6})(?:_\d{6}_[a-f0-9]{12})?$")
 
 
 def prune_sessions(log_dir: Path, keep: int = KEEP_SESSIONS) -> int:
@@ -58,7 +62,8 @@ def prune_sessions(log_dir: Path, keep: int = KEEP_SESSIONS) -> int:
     """
     log = logging.getLogger("session")
     stems = sorted(
-        {path.stem for path in log_dir.glob("*.log") if _SESSION_STEM.match(path.stem)}
+        {path.stem for path in log_dir.glob("*.log") if _SESSION_STEM.match(path.stem)},
+        key=lambda stem: (_SESSION_STEM.match(stem).group(1), stem),
     )  # 이름 끝에 날짜·시각이 붙어 있어 이름순 = 시간순이다
     if len(stems) <= keep:
         return 0
@@ -67,6 +72,8 @@ def prune_sessions(log_dir: Path, keep: int = KEEP_SESSIONS) -> int:
     for stem in stems[: len(stems) - keep]:
         for target in (log_dir / f"{stem}.log", log_dir / stem, log_dir / f"{stem}_report.zip"):
             try:
+                if target.is_symlink():
+                    continue
                 if target.is_dir():
                     shutil.rmtree(target)
                 elif target.exists():
@@ -126,7 +133,9 @@ DASH = "—" if _console_supports("—") else "-"
 # 원본이 그대로 실려 온다. 사용자가 로그를 공유할 수 있으므로 출력 직전에 한 번 더 지운다.
 _UDID_PATTERNS = (
     # 신형: 8자리-16자리. 구분자 "-" 는 남겨야 로그에서 형태를 알아볼 수 있다.
-    re.compile(r"\b([0-9A-Fa-f]{8}-)([0-9A-Fa-f]{16})\b"),
+    re.compile(r"\b([0-9A-Fa-f]{4})([0-9A-Fa-f]{4}-[0-9A-Fa-f]{16})\b"),
+    # usbmuxd can omit the hyphen on current devices.
+    re.compile(r"\b([0-9A-Fa-f]{4})([0-9A-Fa-f]{20})\b"),
     # 구형: 40자리 연속 16진수
     re.compile(r"\b([0-9A-Fa-f]{4})([0-9A-Fa-f]{36})\b"),
 )
@@ -172,12 +181,16 @@ class Session:
 
     def __init__(self, root: Path, name: Optional[str] = None) -> None:
         self.started_at = datetime.now()
-        stamp = self.started_at.strftime("%Y%m%d_%H%M%S")
-        self.id = f"session_{stamp}" if name is None else f"{name}_{stamp}"
+        stamp = self.started_at.strftime("%Y%m%d_%H%M%S_%f")
+        name = name or "session"
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", name):
+            raise ValueError("Invalid session name")
+        self.id = f"{name}_{stamp}_{uuid.uuid4().hex[:12]}"
 
         self.log_dir = root / "logs"
-        self.log_dir.mkdir(parents=True, exist_ok=True)
+        private_directory(self.log_dir)
         self.log_path = self.log_dir / f"{self.id}.log"
+        atomic_private_write(self.log_path, b"")
         # 만들지 않는다 — `save_artifact()` 가 넣을 것이 생겼을 때 만든다.
         self.artifact_dir = self.log_dir / self.id
 
@@ -219,7 +232,8 @@ class Session:
 
 
         # 라이브러리 내부 로그는 파일에만 (INFO 이상은 화면에도 나오면 시끄럽다).
-        logging.getLogger("pymobiledevice3").setLevel(logging.DEBUG)
+        # Pairing/session internals are not needed for ordinary diagnostics.
+        logging.getLogger("pymobiledevice3").setLevel(logging.WARNING)
         logging.getLogger("asyncio").setLevel(logging.WARNING)
         logging.getLogger("zeroconf").setLevel(logging.WARNING)
 
@@ -250,20 +264,21 @@ class Session:
         한다. 그래서 해석 결과가 아니라 받은 그대로를 저장한다.
         """
         log = logging.getLogger("session")
-        self.artifact_dir.mkdir(parents=True, exist_ok=True)
+        if not name or name in (".", "..") or "/" in name or "\\" in name:
+            raise ValueError("Invalid artifact name")
+        private_directory(self.artifact_dir)
         if fmt == "plist":
             path = self.artifact_dir / f"{name}.plist"
             # 이진 형식. XML plist 는 날짜의 소수점 이하를 버리므로 '원본 그대로'가 되지 못한다.
-            path.write_bytes(plistlib.dumps(data, fmt=plistlib.FMT_BINARY))
+            atomic_private_write(path, plistlib.dumps(data, fmt=plistlib.FMT_BINARY), replace=True)
         elif fmt == "bytes":
             path = self.artifact_dir / name
-            path.write_bytes(data)
+            atomic_private_write(path, data, replace=True)
         else:
             path = self.artifact_dir / f"{name}.json"
-            path.write_text(
-                json.dumps(data, indent=2, ensure_ascii=False, default=str),
-                encoding="utf-8",
-            )
+            atomic_private_write(path, json.dumps(
+                data, indent=2, ensure_ascii=False, default=str
+            ).encode("utf-8"), replace=True)
         log.debug("artifact 저장: %s (%d bytes)", path.name, path.stat().st_size)
         return path
 
@@ -276,12 +291,14 @@ class Session:
             handler.flush()
 
         dest = dest or (self.log_dir / f"{self.id}_report.zip")
-        with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as zf:
+        output = io.BytesIO()
+        with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as zf:
             zf.write(self.log_path, self.log_path.name)
             items = sorted(self.artifact_dir.rglob("*")) if self.artifact_dir.exists() else []
             for item in items:
-                if item.is_file():
+                if item.is_file() and not item.is_symlink():
                     zf.write(item, f"{self.id}/{item.relative_to(self.artifact_dir)}")
+        atomic_private_write(dest, output.getvalue(), replace=True)
         log.info("진단 보고서 생성: %s", dest)
         return dest
 

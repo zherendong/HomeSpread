@@ -68,7 +68,7 @@ class AboutDialog(QDialog):
         # 이름과 번호에는 옮길 것이 없다.
         name = QLabel(f"{product.NAME} {VERSION_TEXT}")
         name.setObjectName("aboutName")
-        tagline = QLabel(product.TAGLINE)
+        tagline = QLabel(tr(product.TAGLINE))
         tagline.setObjectName("aboutTagline")
 
         summary = QLabel(
@@ -120,9 +120,14 @@ class AboutDialog(QDialog):
         알려 주는 편이 정직하고 또 실제로 도움이 된다.
         """
         if product.SOURCE_URL:
-            return tr("소스: {url}").format(
+            upstream = tr("Upstream source: {url}").format(
                 url=f'<a href="{product.SOURCE_URL}">{product.SOURCE_URL}</a>'
             )
+            source = paths.bundled(f"{product.NAME}-source.zip")
+            if source is not None:
+                upstream += "<br>" + tr("Modified source included in this app: {url}").format(
+                    url=f'<a href="{QUrl.fromLocalFile(str(source)).toString()}">{product.NAME}-source.zip</a>')
+            return upstream
         return tr("소스 전체를 요구할 권리가 있습니다. 배포한 사람에게 요청하세요.")
 
     def _read(self, name: str) -> str:
@@ -150,7 +155,10 @@ class AboutDialog(QDialog):
         Partner Center 에는 주소를 적어야 하지만, 그 주소는 인터넷이 있어야 열린다.
         정작 이 프로그램은 인터넷 없이 도는 것이 요점이므로 원문도 함께 싣는다.
         """
-        TextWindow(tr("개인정보 처리방침"), self._read("PRIVACY.md"), self).exec()
+        from ..i18n import language
+
+        filename = "PRIVACY.zh-CN.md" if language() == "zh_CN" else "PRIVACY.md"
+        TextWindow(tr("개인정보 처리방침"), self._read(filename), self).exec()
 
     def open_source_page(self) -> None:
         """주소가 있을 때만 브라우저를 연다."""

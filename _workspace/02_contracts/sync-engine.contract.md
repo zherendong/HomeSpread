@@ -1,5 +1,29 @@
 # 계약: sync-engine
 
+## macOS 中文移植版安全约定（2026-11-13）
+
+本节描述当前本地移植版，优先于下方保留的上游历史实现记录。
+
+```python
+BackupStore(root, device_key: str | None = None)
+BackupStore.bind_device(device_key: str) -> None
+BackupStore.load(path, *, for_restore: bool = False) -> list
+async guarded_write(bridge, store, new_state, reason, *, expected_state=None) -> Backup
+async restore(bridge, store, backup_path) -> Backup
+```
+
+写入顺序：设备归属校验 → 容器结构校验 → 读取最新桌面 → 对照 `expected_state` → 编辑条目完整性校验 → 持久化备份及归属/完整性记录 → 再次读取校验备份 → 一次 `setIconState`。普通编辑必须传入读入时的 `document.origin`；手机端发生变化时停止，不合并或覆盖。缺失、复制、改写原始叶项或移动未知项/占位均拒绝写入。
+
+备份目录为 `backups/<device_key>/`。新文件名含微秒和随机后缀，不覆盖同名文件；临时文件完整写入并 `fsync` 后发布，权限 0600，目录权限 0700。`.meta.json` 记录设备键、内容摘要、创建时间和原因，元数据成功写入后才算完整备份。文件摘要检测损坏，不是对同一账户恶意进程的真实性认证。
+
+`load(path)` 可预览旧备份；`load(path, for_restore=True)` 必须验证所属目录、当前设备、元数据和内容摘要。恢复前仍备份当前状态。应用和恢复均等待系统稳定后重新读取，`WriteComparison` 包含 `lost`、`moved`、`changed`、`added`；`safe` 要求前三者为空，`identical` 还要求无新增项。
+
+**备份并不保证所有系统效果可逆。** App 资源库回填不能通过恢复撤销；Apple 未承诺该接口在所有系统和布局上兼容。整份替换也不构成经过验证的事务/掉电原子性保证。读取和写入之间没有系统 compare-and-swap，用户应避免同时在手机或其它工具中编辑。
+
+当前 Mac/iPhone 仅验证了读取与本地备份。下方实际写入结果是上游历史证据，不能作为本机写入兼容性证明。
+
+## 上游历史约定与验证记录
+
 **소유자:** layout-sync-engineer
 **구현:** `src/ipsm/backup.py`, `src/ipsm/iconstate.py` (쓰기 후 대조)
 **상태:** 실기기 항등 왕복 통과 (2026-08-19)

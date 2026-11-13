@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
 import re
 from pathlib import Path
@@ -29,7 +30,8 @@ _UNSAFE = re.compile(r"[^A-Za-z0-9._-]")
 
 def _filename(identifier: str) -> str:
     safe = _UNSAFE.sub("_", identifier)[:120]
-    return f"{safe}.png"
+    digest = hashlib.sha256(identifier.encode("utf-8")).hexdigest()[:16]
+    return f"{safe}-{digest}.png"
 
 
 class IconStore:

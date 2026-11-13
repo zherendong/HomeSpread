@@ -25,3 +25,6 @@ tools/
 # 저장소에 두지 않는다. (make_demo_layout.py / make_demo_icons.py)
 _workspace/demo-layout.json
 _workspace/demo-cache/
+
+# Device trust credentials are private runtime data.
+pairing/

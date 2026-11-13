@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 import os
 import socket
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -37,6 +38,7 @@ STORE_SEARCH = "ms-windows-store://search/?query=Apple%20Devices"
 
 MUX_HOST = "127.0.0.1"
 MUX_PORT = 27015
+MUX_SOCKET = "/var/run/usbmuxd"
 
 
 @dataclass(frozen=True)
@@ -59,9 +61,11 @@ def _muxer_listening(timeout: float = 0.4) -> bool:
     시간 제한을 둔다. 화면을 그리는 실타래에서 부르므로 오래 잡고 있으면 안 된다.
     """
     try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        family = socket.AF_UNIX if sys.platform == "darwin" else socket.AF_INET
+        address = MUX_SOCKET if sys.platform == "darwin" else (MUX_HOST, MUX_PORT)
+        with socket.socket(family, socket.SOCK_STREAM) as sock:
             sock.settimeout(timeout)
-            return sock.connect_ex((MUX_HOST, MUX_PORT)) == 0
+            return sock.connect_ex(address) == 0
     except OSError as exc:  # 지역 설정이 깨졌거나 소켓 자체를 못 만드는 PC
         log.debug("27015 확인 중 예외: %r", exc)
         return False
@@ -92,6 +96,8 @@ def _installed_where() -> Optional[str]:
 
 def look() -> Presence:
     """지금 상태를 본다. 부를 때마다 새로 본다 — 사용자가 방금 설치했을 수 있다."""
+    if sys.platform == "darwin":
+        return Presence(running=_muxer_listening(), installed=True, where=MUX_SOCKET)
     if _muxer_listening():
         return Presence(running=True, installed=True, where=f"{MUX_HOST}:{MUX_PORT}")
     where = _installed_where()

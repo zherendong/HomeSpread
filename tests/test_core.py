@@ -10,6 +10,10 @@ import plistlib
 import re
 import sys
 import tempfile
+from contextlib import ExitStack
+from functools import wraps
+from types import SimpleNamespace
+from unittest.mock import patch
 from datetime import datetime
 from pathlib import Path
 
@@ -31,6 +35,25 @@ from ipsm.layout import LayoutDocument, LayoutError  # noqa: E402
 from ipsm.paths import DATA_DIRS, cache_root, data_root, ensure_ready  # noqa: E402
 from ipsm.logging_setup import prune_sessions, start_session  # noqa: E402
 from ipsm import product  # noqa: E402
+
+
+def windows_contract(test):
+    """Run Windows-specific expectations on every host without changing global sys."""
+    @wraps(test)
+    def run(*args, **kwargs):
+        from ipsm import apple_devices, paths
+        from ipsm.ui import guide
+        import os
+
+        platform = SimpleNamespace(platform="win32", executable=sys.executable)
+        with ExitStack() as stack:
+            for module in (apple_devices, paths, guide):
+                stack.enter_context(patch.object(module, "sys", platform))
+            stack.enter_context(patch.dict(os.environ))
+            os.environ.pop("HOMESPREAD_DATA_DIR", None)
+            os.environ.pop("HOMESPREAD_CACHE_DIR", None)
+            return test(*args, **kwargs)
+    return run
 
 # 실제 iconState 를 흉내낸 표본. 독 + 2페이지 + 폴더 + 위젯(우리가 모르는 것).
 SAMPLE = [
@@ -931,7 +954,7 @@ def test_version_is_one_point_zero_and_shows_in_the_title():
 
     assert (version.VERSION_MAJOR, version.VERSION_MINOR) == (1, 0)
     assert 0 <= version.VERSION_PATCH <= 99
-    assert version.VERSION_TEXT == f"v01.00.{version.VERSION_PATCH:02d}"
+    assert version.VERSION_TEXT == f"v01.00.{version.VERSION_PATCH:02d}-mac.zh.1"
 
     source = (Path(__file__).resolve().parents[1] / "src/ipsm/ui/main_window.py").read_text(
         encoding="utf-8"
@@ -1565,7 +1588,8 @@ def test_the_window_changes_its_words_when_the_language_changes():
             # 자기 말을 찾을 수 있어야 하기 때문이다.
             dialog = SettingsDialog(window)
             names = [dialog.language.itemText(i) for i in range(dialog.language.count())]
-            assert names == ["한국어", "English"], names
+            assert names == list(i18n.LANGUAGES.values()), names
+            assert {"简体中文", "한국어", "English"}.issubset(names)
             assert dialog.chosen() == "en"
             dialog.close()
 
@@ -1581,6 +1605,7 @@ def test_the_window_changes_its_words_when_the_language_changes():
 # ------------------------------------------------------- 준비물과 시작 안내판
 
 
+@windows_contract
 def test_the_open_port_decides_readiness_not_the_folder():
     """27015 가 열려 있으면 그것으로 끝이다 — 설치 자리는 묻지도 않는다.
 
@@ -1612,6 +1637,7 @@ def test_the_open_port_decides_readiness_not_the_folder():
         apple_devices._installed_where = where
 
 
+@windows_contract
 def test_the_guide_tells_the_user_what_to_do_next():
     """세 갈래마다 다음에 할 일이 다르다 — 없는 사람에게 '실행하세요'라고 하면 안 된다."""
     if _qt_ready() is None:
@@ -2009,11 +2035,18 @@ def test_the_device_verifier_stays_read_only_without_apply():
     """
     src = (ROOT / "scripts" / "verify_edits.py").read_text(encoding="utf-8")
 
-    stage_two_at = src.index("async def stage_two(")
-    writes = [i for i in range(len(src)) if src.startswith("set_icon_state(", i)]
+    tree = ast.parse(src)
+    stage_two = next(node for node in tree.body
+                     if isinstance(node, ast.AsyncFunctionDef) and node.name == "stage_two")
+    writes = [node for node in ast.walk(tree)
+              if isinstance(node, ast.Call)
+              and getattr(node.func, "id", None) in {"guarded_write", "restore"}]
     assert writes, "쓰기를 부르는 자리가 아예 없다 — 2단계가 사라졌는가"
-    for at in writes:
-        assert at > stage_two_at, "stage_two 바깥에서 기기에 쓴다"
+    stage_nodes = set(ast.walk(stage_two))
+    assert all(call in stage_nodes for call in writes), "stage_two 바깥에서 기기에 쓴다"
+    assert not any(isinstance(node, ast.Call)
+                   and getattr(node.func, "attr", None) == "set_icon_state"
+                   for node in ast.walk(tree)), "백업 보호를 우회한 직접 쓰기"
 
     # stage_two 를 부르는 곳은 --apply 아래여야 한다.
     call_at = src.index("await stage_two(")
@@ -2024,6 +2057,7 @@ def test_the_device_verifier_stays_read_only_without_apply():
     assert '"--apply", action="store_true"' in src
 
 
+@windows_contract
 def test_the_privacy_policy_tells_the_whole_truth_in_both_languages():
     """방침이 실제 동작과 어긋나면 스토어 심사에서 걸리고, 무엇보다 거짓말이 된다.
 
@@ -2167,6 +2201,7 @@ def test_data_dirs_are_created_where_the_program_lives():
 
 
 
+@windows_contract
 def test_unusable_folder_is_reported_instead_of_moved_elsewhere():
     """만들 수 없는 곳이면 조용히 다른 데로 옮기지 않고 이유를 돌려준다.
 
@@ -2187,6 +2222,7 @@ def test_unusable_folder_is_reported_instead_of_moved_elsewhere():
     assert "옮긴 뒤" in problem  # 무엇을 하면 되는지까지 말한다
 
 
+@windows_contract
 def test_the_backup_folder_never_lives_where_windows_may_clean_it():
     """백업과 로그를 임시 폴더에 두지 않는다.
 
@@ -2206,6 +2242,7 @@ def test_the_backup_folder_never_lives_where_windows_may_clean_it():
     assert cache_root().resolve().parent == temp
 
 
+@windows_contract
 def test_the_data_folder_moves_out_of_the_install_dir_when_packaged():
     """MSIX 로 설치되면 exe 옆은 쓸 수 없다 — 문서 폴더로 간다.
 
@@ -2256,6 +2293,7 @@ def test_source_runs_are_never_mistaken_for_a_packaged_install():
         paths.package_family_name = saved
 
 
+@windows_contract
 def test_the_advice_matches_what_the_user_can_actually_do():
     """Store 로 설치한 앱은 사용자가 옮길 수 없다 — 그때는 옮기라고 말하지 않는다."""
     import ipsm.paths as paths
@@ -2284,7 +2322,7 @@ def test_the_documents_folder_is_asked_for_not_guessed():
     body = src[src.index("def documents_dir("): src.index("def data_root(")]
     assert "SHGetKnownFolderPath" in body
     # 환경 변수로 경로를 짓지 않는다 — 문서 폴더의 진짜 자리는 셸만 안다.
-    assert "environ" not in src and "getenv" not in src
+    assert "environ" not in body and "getenv" not in body
 
     from ipsm.paths import documents_dir
 
@@ -2385,7 +2423,8 @@ def test_no_translation_is_left_as_korean():
     """번역해 놓고 원문을 그대로 붙여 둔 것을 잡는다. 옮기다 만 자리다."""
     from ipsm.translations_en import TRANSLATIONS
 
-    same = [key for key, value in TRANSLATIONS.items() if key == value]
+    same = [key for key, value in TRANSLATIONS.items()
+            if key == value and re.search(r"[\uac00-\ud7af]", key)]
     assert not same, "원문 그대로인 번역: " + " / ".join(s[:40] for s in same[:5])
 
 
@@ -2533,6 +2572,7 @@ def test_the_exe_says_what_it_is():
     assert "Copyright" in product.COPYRIGHT
 
 
+@windows_contract
 def test_the_write_failure_message_names_controlled_folder_access():
     """"권한을 확인하세요"만으로는 빠져나올 수 없는 경우가 있다.
 

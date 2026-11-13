@@ -44,7 +44,7 @@ _SRC = Path(__file__).resolve().parents[1] / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
-from ipsm.backup import BackupStore  # noqa: E402
+from ipsm.backup import BackupStore, guarded_write, restore  # noqa: E402
 from ipsm.device import DeviceBridge, DeviceError  # noqa: E402
 from ipsm.iconstate import KEY_ICON_LISTS, compare_after_write  # noqa: E402
 from ipsm.layout import Container, LayoutDocument, Node  # noqa: E402
@@ -459,16 +459,20 @@ async def stage_two(bridge: DeviceBridge, store: BackupStore, origin: list[Any],
     for line in doc.changes()[:10]:
         log.info("     - %s", line)
 
-    await bridge.set_icon_state(sent)
+    print("将按上述方案覆盖整份桌面，然后尝试恢复原布局。App 资源库中的应用可能被放回桌面；此副作用无法通过恢复消除。")
+    if not sys.stdin or not sys.stdin.isatty() or input("输入 APPLY 才执行：").strip() != "APPLY":
+        report.add(SKIP, "实机写入", "未确认，没有写入设备")
+        return
+    backup = await guarded_write(bridge, store, sent, "verify-edit", expected_state=origin)
     await asyncio.sleep(2.5)
     readback = await bridge.get_icon_state(artifact_name="icon_state_after_group")
 
     # 우리가 쓴 그대로 기기가 받았는가.
     result = compare_after_write(sent, readback)
-    if result.lost or result.moved:
+    if not result.safe:
         report.add(FAIL, "지어낸 묶음을 기기가 받는가",
                    f"손실 {len(result.lost)} · 이동 {len(result.moved)}")
-        for note in (result.lost + result.moved)[:6]:
+        for note in (result.lost + result.moved + result.changed)[:6]:
             log.error("            %s", note)
     else:
         detail = "보낸 것과 되읽은 것이 같다"
@@ -490,13 +494,13 @@ async def stage_two(bridge: DeviceBridge, store: BackupStore, origin: list[Any],
     # ----- 되돌린다.
     log.info("")
     log.info("   원래 배치로 되돌립니다.")
-    await bridge.set_icon_state(origin)
+    await restore(bridge, store, backup.path)
     await asyncio.sleep(2.5)
     restored = await bridge.get_icon_state(artifact_name="icon_state_restored")
     back = compare_after_write(origin, restored)
-    if back.lost or back.moved:
+    if not back.safe:
         report.add(FAIL, "되돌리기", f"손실 {len(back.lost)} · 이동 {len(back.moved)}")
-        for note in (back.lost + back.moved)[:6]:
+        for note in (back.lost + back.moved + back.changed)[:6]:
             log.error("            %s", note)
         log.error("   backups/ 의 가장 최근 파일로 직접 복원해 주세요.")
     else:
@@ -526,6 +530,7 @@ async def run(args: argparse.Namespace) -> int:
             log.error("   연결된 iPhone이 없습니다. USB 로 연결하고 '신뢰'를 눌러 주세요.")
             return 2
         info = await bridge.connect(serial=args.udid)
+        store.bind_device(bridge.device_key)
         log.info("   %s", info.summary())
 
         origin = await bridge.get_icon_state(artifact_name="icon_state_before")

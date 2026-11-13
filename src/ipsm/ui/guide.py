@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 
 from PySide6.QtCore import Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
@@ -143,6 +144,12 @@ class GuideBoard(QWidget):
             self.action.setText(tr("기기에서 읽기"))
             self.action.setVisible(True)
             self.again.setVisible(False)
+        elif sys.platform == "darwin":
+            self.state.setText(tr("The Mac's iPhone connection service is unavailable. Reconnect the cable, open Finder, and restart your Mac if needed."))
+            self.box.setProperty("tone", "wait")
+            self.action.setVisible(False)
+            self.again.setText(tr("다시 확인"))
+            self.again.setVisible(True)
         elif self._presence.installed:
             self.state.setText(
                 tr("Apple Devices 는 설치되어 있지만 아직 동작하지 않습니다.\n"
@@ -175,6 +182,8 @@ class GuideBoard(QWidget):
 
     def _open_store(self) -> None:
         """Store 로 데려간다. 딥링크가 듣지 않으면 검색으로라도."""
+        if sys.platform == "darwin":
+            return
         if QDesktopServices.openUrl(QUrl(apple_devices.STORE_LINK)):
             log.info("Store 딥링크를 열었다")
             return
@@ -189,15 +198,15 @@ class GuideBoard(QWidget):
             tr("탈옥도, 개발자 모드도 필요 없습니다. USB 케이블과 ‘신뢰’ 한 번이면 됩니다.")
         )
         self.steps[0].setText(
-            tr("① Apple 이 만든 구성요소가 USB 를 맡습니다 — Apple Devices 앱 또는 iTunes")
+            tr("① macOS includes iPhone connectivity. No Apple Devices app or iTunes installation is needed.")
+            if sys.platform == "darwin" else tr("① Apple 이 만든 구성요소가 USB 를 맡습니다 — Apple Devices 앱 또는 iTunes")
         )
         self.steps[1].setText(
             tr("② iPhone 을 케이블로 연결하고, 잠금을 푼 뒤 ‘신뢰’ 를 눌러 주세요")
         )
         self.steps[2].setText(tr("③ 위쪽 ‘기기에서 읽기’ 를 누르면 홈화면이 펼쳐집니다"))
         self.safety.setText(
-            tr("적용할 때는 홈화면 전체가 한 번에 덮어써집니다. 그래서 쓰기 직전에 늘 백업을\n"
-            "먼저 뜨고, 백업에 실패하면 쓰지 않습니다. 언제든 백업으로 되돌릴 수 있습니다.")
+            tr("Applying replaces the entire Home Screen after a verified backup. Apps kept only in the App Library may reappear; restoring a backup cannot undo that iOS behavior.")
         )
         self._paint()
 

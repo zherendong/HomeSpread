@@ -17,6 +17,7 @@ pymobiledevice3 는 전면 async 이고 Qt 는 자기 이벤트 루프를 돈다
 from __future__ import annotations
 
 import asyncio
+import copy
 import logging
 import threading
 import time
@@ -25,7 +26,7 @@ from typing import Any, Callable, Optional
 
 from PySide6.QtCore import QThread, Signal
 
-from ..backup import Backup, BackupStore, guarded_write, restore
+from ..backup import Backup, BackupError, BackupStore, guarded_write, restore
 from ..i18n import tr
 from ..iconstate import compare_after_write
 from ..icons import IconStore
@@ -71,6 +72,7 @@ class DeviceWorker(QThread):
     loaded = Signal(object, object, object)  # state, metrics, DeviceInfo
     iconsUpdated = Signal(int, int)  # 받은 수, 요청한 수
     applied = Signal(object)  # dict(backup, comparison, state)
+    compatibilityChecked = Signal(object)
     restoredFrom = Signal(object)  # dict(backup, state)
     backupsListed = Signal(object)  # list[Backup]
     installedListed = Signal(object)  # dict[번들 ID, 표시 이름]
@@ -90,6 +92,8 @@ class DeviceWorker(QThread):
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._loop_ready = threading.Event()
         self._busy = False
+        self._startup_error: str | None = None
+        self.write_verified = False
 
     # --------------------------------------------------------------- 스레드
 
@@ -101,9 +105,15 @@ class DeviceWorker(QThread):
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
         self._loop_ready.set()
-        _load_device_layer()
         try:
+            _load_device_layer()
             self._loop.run_forever()
+        except Exception as exc:
+            self._startup_error = str(exc)
+            log.exception("Device worker startup failed")
+            self._busy = False
+            self.failed.emit(tr("Cannot load the device connection library."), tr("Reinstall the application dependencies and restart the app."))
+            self.busyChanged.emit(False)
         finally:
             try:
                 self._loop.close()
@@ -125,7 +135,7 @@ class DeviceWorker(QThread):
             self.failed.emit(tr("이미 다른 작업이 진행 중입니다."), tr("끝날 때까지 기다려 주세요."))
             return False
         self._loop_ready.wait(5.0)
-        if self._loop is None:
+        if self._loop is None or self._loop.is_closed() or self._startup_error:
             self.failed.emit(tr("작업 스레드가 시작되지 않았습니다."), tr("앱을 다시 실행해 주세요."))
             return False
 
@@ -136,9 +146,11 @@ class DeviceWorker(QThread):
             try:
                 await coro_factory()
             except DeviceError as exc:
+                self.write_verified = False
                 log.warning("%s 실패: %s", what, exc)
                 self.failed.emit(str(exc.args[0]) if exc.args else str(exc), exc.action)
             except Exception as exc:
+                self.write_verified = False
                 log.exception("%s 중 예상 못 한 오류", what)
                 self.failed.emit(
                     tr("{what} 중 문제가 생겼습니다: {why}").format(what=what, why=exc),
@@ -155,6 +167,7 @@ class DeviceWorker(QThread):
         if self._bridge is None:
             bridge = DeviceBridge()
             await bridge.connect()
+            self.backups.bind_device(bridge.device_key)
             self._bridge = bridge
         return self._bridge
 
@@ -164,6 +177,7 @@ class DeviceWorker(QThread):
         """연결하고 현재 홈화면과 그리드 규격을 읽어 온다."""
 
         async def job() -> None:
+            self.write_verified = False
             self.progressed.emit(tr("iPhone 을 찾는 중…"), 0, 0)
             bridge = await self._bridge_ready()
             self.progressed.emit(tr("홈화면을 읽는 중…"), 0, 0)
@@ -201,24 +215,46 @@ class DeviceWorker(QThread):
 
         return self._submit(job, tr("아이콘 내려받기"))
 
-    def apply(self, state: list[Any], reason: str = "before-edit") -> bool:
+    def apply(self, state: list[Any], reason: str = "before-edit", *, expected_state: list[Any]) -> bool:
         """백업을 만든 뒤 홈화면을 덮어쓴다 (REQ-010).
 
         쓰기는 `guarded_write` 로만 나간다. 백업이 실패하면 거기서 멈추고 쓰지 않는다.
         """
 
+        state, expected_state = copy.deepcopy(state), copy.deepcopy(expected_state)
+
         async def job() -> None:
+            if not self.write_verified:
+                raise BackupError(tr("Run the write compatibility test before applying edits."))
             bridge = await self._bridge_ready()
             self.progressed.emit(tr("백업을 만드는 중…"), 0, 0)
-            backup: Backup = await guarded_write(bridge, self.backups, state, reason)
+            backup: Backup = await guarded_write(bridge, self.backups, state, reason, expected_state=expected_state)
             self.progressed.emit(tr("홈화면을 쓰는 중…"), 0, 0)
             await asyncio.sleep(_SETTLE_SECONDS)
             self.progressed.emit(tr("결과를 확인하는 중…"), 0, 0)
             after = await bridge.get_icon_state(artifact_name="icon_state_after_write")
             comparison = compare_after_write(state, after)
+            self.write_verified = comparison.safe
             self.applied.emit({"backup": backup, "comparison": comparison, "state": after})
 
         return self._submit(job, tr("홈화면 적용"))
+
+    def check_compatibility(self, expected_state: list[Any]) -> bool:
+        """Explicitly confirmed real identity write; never runs during read/load."""
+        expected = copy.deepcopy(expected_state)
+
+        async def job() -> None:
+            self.write_verified = False
+            bridge = await self._bridge_ready()
+            self.progressed.emit(tr("Checking write compatibility… Keep the iPhone connected."), 0, 0)
+            backup = await guarded_write(bridge, self.backups, expected, "compatibility", expected_state=expected)
+            await asyncio.sleep(_SETTLE_SECONDS)
+            after = await bridge.get_icon_state(artifact_name="icon_state_compatibility")
+            comparison = compare_after_write(expected, after)
+            self.write_verified = comparison.safe
+            self.compatibilityChecked.emit({"backup": backup, "comparison": comparison, "state": after})
+
+        return self._submit(job, tr("Write compatibility test"))
 
     def restore_backup(self, path: Path) -> bool:
         """백업 시점으로 되돌린다 (REQ-011)."""
@@ -226,10 +262,13 @@ class DeviceWorker(QThread):
         async def job() -> None:
             bridge = await self._bridge_ready()
             self.progressed.emit(tr("복원하는 중…"), 0, 0)
+            expected = self.backups.load(Path(path), for_restore=True)
             backup = await restore(bridge, self.backups, Path(path))
             await asyncio.sleep(_SETTLE_SECONDS)
             after = await bridge.get_icon_state(artifact_name="icon_state_after_restore")
-            self.restoredFrom.emit({"backup": backup, "state": after})
+            comparison = compare_after_write(expected, after)
+            self.write_verified = comparison.safe
+            self.restoredFrom.emit({"backup": backup, "state": after, "comparison": comparison})
 
         return self._submit(job, tr("백업 복원"))
 

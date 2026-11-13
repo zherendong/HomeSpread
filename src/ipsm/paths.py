@@ -37,6 +37,7 @@
 from __future__ import annotations
 
 import ctypes
+import os
 import sys
 import tempfile
 import uuid
@@ -139,6 +140,11 @@ def documents_dir() -> Optional[Path]:
 
 def data_root() -> Path:
     """logs · backups · settings.json 을 담을 폴더. 잃으면 안 되는 것들의 자리."""
+    override = os.environ.get("HOMESPREAD_DATA_DIR")
+    if override:
+        return Path(override).expanduser().resolve()
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / product.NAME
     if is_packaged():
         documents = documents_dir()
         if documents is not None:
@@ -157,6 +163,11 @@ def cache_root() -> Path:
     절대 여기 두지 않는다 — 저장 공간 센스가 임시 파일을 치우는 것은 사고가 아니라
     정상 동작이고, 그때 사라지는 백업은 사라졌다는 말조차 남기지 않는다.
     """
+    override = os.environ.get("HOMESPREAD_CACHE_DIR")
+    if override:
+        return Path(override).expanduser().resolve()
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Caches" / product.NAME
     return Path(tempfile.gettempdir()) / f"{product.NAME}-cache"
 
 
@@ -186,6 +197,8 @@ def _cfa_hint() -> str:
     옮기라"고 권했는데, **그 둘이 바로 제어된 폴더 액세스가 기본으로 지키는 자리다.**
     같은 벽으로 다시 보내는 안내였다. 그래서 이 한 줄을 네 갈래 모두에 붙인다.
     """
+    if sys.platform != "win32":
+        return tr("Check the folder permissions and available disk space in Finder.")
     return tr(
         "폴더 권한과 별개로, Windows 보안의 '제어된 폴더 액세스'가 막고 있을 수도\n"
         "있습니다. Windows 보안 › 바이러스 및 위협 방지 › 랜섬웨어 방지 에서\n"
@@ -199,6 +212,8 @@ def _cannot_write(where: Path) -> str:
     포장된 설치와 폴더 배포는 **할 수 있는 일이 다르다.** Store 로 설치한 앱은
     사용자가 옮길 수 없으므로, 옮기라는 안내는 그 경우 막다른 길이 된다.
     """
+    if sys.platform == "darwin":
+        return tr("Cannot write to '{where}'. A verified backup is required before changing the Home Screen. Check this folder's permissions in Finder.").format(where=where)
     if is_packaged():
         return tr(
             "'{where}' 에 파일을 쓸 수 없습니다.\n"
@@ -225,10 +240,12 @@ def ensure_ready() -> tuple[Path, str | None]:
     """
     root = data_root()
     try:
-        root.mkdir(parents=True, exist_ok=True)
+        root.mkdir(mode=0o700, parents=True, exist_ok=True)
         for name in DATA_DIRS:
-            (root / name).mkdir(exist_ok=True)
+            (root / name).mkdir(mode=0o700, exist_ok=True)
     except Exception as exc:
+        if sys.platform == "darwin":
+            return root, tr("Cannot create the data folder '{where}' ({why}). Check folder permissions and disk space in Finder.").format(where=root, why=exc.__class__.__name__)
         if is_packaged():
             return root, tr(
                 "'{where}' 에 폴더를 만들 수 없습니다 ({why}).\n"
@@ -243,7 +260,7 @@ def ensure_ready() -> tuple[Path, str | None]:
         return root, _cannot_write(root / "backups")
 
     try:
-        (cache_root() / "icons").mkdir(parents=True, exist_ok=True)
+        (cache_root() / "icons").mkdir(mode=0o700, parents=True, exist_ok=True)
     except Exception as exc:
         # 아이콘은 다시 받으면 그만이다. 여기서 앱을 막지 않는다.
         del exc

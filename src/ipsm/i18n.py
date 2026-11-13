@@ -21,11 +21,13 @@ from typing import Callable, Optional
 
 #: 고를 수 있는 언어. 값은 **그 언어로 쓴** 이름이다 — 목록에서 자기 말을 찾을 수
 #: 있어야 하고, 지금 언어가 무엇이든 그것은 변하지 않는다.
-LANGUAGES: dict[str, str] = {"ko": "한국어", "en": "English"}
+LANGUAGES: dict[str, str] = {"zh_CN": "简体中文", "en": "English", "ko": "한국어"}
 
-DEFAULT_LANGUAGE = "ko"
+DEFAULT_LANGUAGE = "zh_CN"
 
-_current = DEFAULT_LANGUAGE
+# Pure model callers use the source language until the application calls start().
+# This Chinese edition starts in Chinese regardless of the Mac's system language.
+_current = "ko"
 _catalog: dict[str, str] = {}
 _listeners: list[Callable[[], None]] = []
 
@@ -57,7 +59,7 @@ def defer(text: str) -> str:
 def set_language(code: str) -> None:
     """언어를 바꾸고, 화면들에게 다시 그리라고 알린다."""
     global _current, _catalog
-    if code not in LANGUAGES:
+    if not isinstance(code, str) or code not in LANGUAGES:
         raise ValueError(f"모르는 언어입니다: {code}")
     _current = code
     _catalog = _load_catalog(code)
@@ -81,6 +83,10 @@ def off_language_changed(callback: Callable[[], None]) -> None:
 
 
 def _load_catalog(code: str) -> dict[str, str]:
+    if code == "zh_CN":
+        from .translations_zh import TRANSLATIONS
+
+        return TRANSLATIONS
     if code == "en":
         from .translations_en import TRANSLATIONS
 
@@ -115,25 +121,23 @@ def save_settings(values: dict) -> None:
 
 
 def system_language() -> str:
-    """이 PC 의 언어. 처음 켰을 때 무엇을 보여줄지 정하는 데만 쓴다.
-
-    한국어 PC 가 아니면 영어로 연다 — 스토어로 받은 사람이 읽을 수 없는 화면을
-    처음부터 마주하지 않도록.
-    """
+    """Map the system locale to a supported language, including Chinese locales."""
     try:
         tag = locale.getlocale()[0] or ""
     except (ValueError, TypeError):  # 드물게 지역 설정이 깨진 PC 가 있다
         tag = ""
     normalized = tag.replace("-", "_").lower()
+    if normalized.startswith("zh") or "chinese" in normalized:
+        return "zh_CN"
     if normalized.startswith("ko") or "korean" in normalized:
         return "ko"
     return "en"
 
 
 def start(preferred: Optional[str] = None) -> str:
-    """앱을 켤 때 한 번. 저장된 언어 → PC 언어 순으로 고르고 그 코드를 돌려준다."""
-    code = preferred or load_settings().get("language") or system_language()
-    if code not in LANGUAGES:
+    """Use an explicit preference, saved choice, or this edition's Chinese default."""
+    code = preferred or load_settings().get("language") or DEFAULT_LANGUAGE
+    if not isinstance(code, str) or code not in LANGUAGES:
         code = DEFAULT_LANGUAGE
     set_language(code)
     return code
