@@ -1,5 +1,11 @@
 # HomeSpread（早期仓库目录名：iPhoneScreenManager）
 
+## 离线草稿与设备写入的区别
+
+`mac.zh.3` 在独立 `OfflineDraft` 中开放同页两个普通 App 的交换、差异查看、撤销/重做和 `.hsdraft` 保存/重开。它不修改原始 `LayoutDocument` 的只读规则，也不进入 `DeviceWorker` 的设备路径。Duo、小组件和未知布局的所有设备写入仍由现有策略拒绝。草稿文件是含个人数据的本机产物，不是可恢复的手机备份，不能提交或打包。
+
+纯编辑规则位于 `ipsm.draft_rules`，研究入口仅做兼容导出。文件验证、重放与界面边界见 `_workspace/02_contracts/offline-draft.contract.md` 和 `_workspace/06_offline-draft-qa.md`。
+
 ## 当前能力限制：小组件与 Duo
 
 `mac.zh.2` 增加只读的小组件跨格及 Duo 双页预览。所有写入入口必须遵守 `write_policy.py`：拒绝 Duo 型号、含小组件/堆叠、未知项或空位的当前/目标布局，包括原样校验与恢复。会话成功标记不能覆盖此限制。旧文中的校验失败后允许恢复，仅适用于设备、当前状态和备份都通过能力检查的普通布局。

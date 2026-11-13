@@ -18,7 +18,7 @@
 
 ## 需求、设计和验收
 
-Duo 写回研究与当前已安装的只读能力分开记录：[方案与离线结果](research/DUO_EDIT_WRITE_PLAN.zh-CN.md)、[固定版本协议证据](research/DUO_PROTOCOL_EVIDENCE.zh-CN.md)、[独立离线 QA](research/DUO_OFFLINE_QA.zh-CN.md)。研究草稿不授权实际写入。
+Duo 写回研究与当前已安装的只读能力分开记录：[方案与离线结果](research/DUO_EDIT_WRITE_PLAN.zh-CN.md)、[固定版本协议证据](research/DUO_PROTOCOL_EVIDENCE.zh-CN.md)、[独立离线 QA](research/DUO_OFFLINE_QA.zh-CN.md)。研究草稿不授权实际写入。阶段 A 已推进到应用内的离线草稿界面，参见 [草稿契约](_workspace/02_contracts/offline-draft.contract.md)。
 
 | 文档 | 内容 |
 |---|---|
@@ -27,6 +27,7 @@ Duo 写回研究与当前已安装的只读能力分开记录：[方案与离线
 | [技术栈决策](_workspace/02_desktop-app-architect_adr-001-stack.md) | Python、Qt、工作线程及依赖边界。 |
 | [布局与同步实现](_workspace/02_layout-sync-engineer_implementation.md) | 原始布局保留、备份和同步实现说明。 |
 | [界面规格](_workspace/02_ui-engineer_screen-spec.md) | 页面、文件夹、拖放、状态和确认交互。 |
+| [离线草稿验收](_workspace/06_offline-draft-qa.md) | 同页 App 交换、撤销/重做、专用草稿文件与设备隔离。 |
 | [小组件与 Duo 验收](_workspace/05_widget-duo-qa.md) | 跨格只读预览、Duo 双页和不可绕过的写入拒绝。 |
 | [macOS 独立验收](_workspace/04_macos-qa_final-report.md) | 自动测试、平台检查和未进行的真机写入验证。 |
 

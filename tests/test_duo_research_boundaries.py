@@ -192,7 +192,16 @@ def test_returned_candidate_is_detached_from_original_and_other_drafts():
 def test_research_modules_have_no_device_or_transport_imports():
     allowed = {'__future__','argparse','collections','copy','dataclasses','datetime',
                'hashlib','itertools','json','math','pathlib','plistlib','sys','typing'}
+    # The validated pure rules were promoted to the offline-draft runtime. The
+    # historical research API may re-export exactly that module; inspect its
+    # imports too rather than exempting arbitrary production imports.
     modules = sorted((ROOT / 'research').glob('*.py'))
+    rules = ROOT / 'src/ipsm/draft_rules.py'
+    if rules.exists():
+        # Importing ipsm.draft_rules also initializes its package. Keep that
+        # initialization chain under the same no-device audit.
+        modules.extend([rules, ROOT / 'src/ipsm/__init__.py',
+                        ROOT / 'src/ipsm/version.py', ROOT / 'src/ipsm/product.py'])
     assert modules
     for path in modules:
         tree = ast.parse(path.read_text())
@@ -200,7 +209,22 @@ def test_research_modules_have_no_device_or_transport_imports():
             if isinstance(node, ast.Import):
                 assert all(alias.name.split('.')[0] in allowed for alias in node.names), path
             elif isinstance(node, ast.ImportFrom):
-                assert node.level > 0 or (node.module or '').split('.')[0] in allowed, path
+                trusted_reexport = (
+                    path == ROOT / 'research/duo_planner.py'
+                    and node.level == 0 and node.module == 'ipsm.draft_rules'
+                    and {alias.name for alias in node.names} <= {
+                        'DraftError', 'analyze_layout', 'plan_swap', 'validate_swap'
+                    }
+                )
+                trusted_package_edge = (
+                    node.level == 1 and (
+                        (path == ROOT / 'src/ipsm/__init__.py' and node.module == 'version'
+                         and {alias.name for alias in node.names} <= {'VERSION_TEXT', 'VERSION_TUPLE'})
+                        or (path == ROOT / 'src/ipsm/version.py' and node.module == 'product'
+                            and {alias.name for alias in node.names} <= {'NAME'})
+                    )
+                )
+                assert trusted_reexport or trusted_package_edge or (node.level == 0 and (node.module or '').split('.')[0] in allowed), path
             elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
                 assert node.func.id not in {'eval','exec','__import__','compile'}, path
 

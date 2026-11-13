@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import logging
 import sys
+import copy
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
@@ -45,6 +47,10 @@ from ..i18n import tr
 from ..layout import Grid, LayoutDocument, LayoutError
 from ..version import VERSION_TEXT
 from ..icons import wanted_icons
+from ..iconstate import ItemKind
+from ..drafts import OfflineDraft
+from ..draft_rules import DraftError, analyze_layout
+from ..safeio import private_directory
 from ..write_policy import write_block_reason
 from .canvas import DockFrame, DuoSpreadFrame, FlowLayout, FolderPanel, PageFrame
 from .about import AboutDialog
@@ -116,7 +122,8 @@ QPushButton {
     border-radius: 5px; padding: 5px 16px; min-width: 74px;
 }
 QPushButton:hover { background: #3a4462; }
-QPushButton#previewModePages:checked, QPushButton#previewModeDuo:checked {
+QPushButton#previewModePages:checked, QPushButton#previewModeDuo:checked,
+QPushButton#draft_view_original:checked, QPushButton#draft_view_draft:checked {
     background: #3a4d70; border-color: #8faadb; color: #ffffff;
 }
 QPushButton:disabled { color: #5b6377; background: #232838; border-color: #2c3245; }
@@ -389,6 +396,11 @@ class MainWindow(QMainWindow):
         self.offline = offline
         self.preview_profile = "pages"
         self.product_type: str | None = None
+        self.draft: OfflineDraft | None = None
+        self.draft_view = "draft"
+        self._draft_metrics: dict[str, Any] | None = None
+        self._draft_source_name = ""
+        self._draft_start_error: str | None = None
         self.installed: dict[str, str] = {}  # 번들 ID -> 이름 (기기에서 받은 설치 목록)
 
         self.worker = DeviceWorker(self.root)
@@ -417,6 +429,9 @@ class MainWindow(QMainWindow):
 
     @property
     def device_summary(self) -> str:
+        if self.draft is not None:
+            name = self.draft.path.name if self.draft.path else tr("Unsaved draft")
+            return tr("Offline draft: {name}").format(name=name)
         kind, value = self._device
         if kind == "file":
             return tr("파일: {name}").format(name=value)
@@ -428,6 +443,8 @@ class MainWindow(QMainWindow):
 
     @property
     def readonly_reason(self) -> str | None:
+        if self.draft is not None:
+            return tr("Offline drafts never enable iPhone reads or writes.")
         if self.doc is None:
             return None
         reason = write_block_reason(self.doc.origin, product_type=self.product_type)
@@ -457,6 +474,9 @@ class MainWindow(QMainWindow):
         if self.worker.busy:
             return False
         state = self.worker.backups.load(Path(path))
+        if not self._confirm_draft_transition():
+            return False
+        self.draft = None
         self.offline = True
         self.worker.set_offline_mode(True)
         self.guide.set_offline(True)
@@ -465,6 +485,227 @@ class MainWindow(QMainWindow):
         self._device = ("file", Path(path).name)
         self.installed = {}
         self._set_document(state, None)
+        return True
+
+    # ------------------------------------------------------ offline drafts
+
+    def start_draft(self) -> bool:
+        """Create a detached local edit session; never use the live device path."""
+        if self.worker.busy or self.doc is None or not self.offline or self._device[0] != "file":
+            return False
+        if self.draft is not None:
+            return True
+        draft = OfflineDraft(self.doc.origin)
+        self._draft_metrics = copy.deepcopy(self.metrics)
+        self._draft_source_name = self._device[1]
+        self.draft = draft
+        self.draft_view = "draft"
+        self.worker.set_offline_mode(True)
+        self.write_verified = False
+        self._render_draft()
+        return True
+
+    def open_draft(self, path: Path) -> bool:
+        if self.worker.busy:
+            return False
+        draft = OfflineDraft.load(Path(path))  # Validate before discarding an existing session.
+        if not self._confirm_draft_transition():
+            return False
+        self.offline = True
+        self.worker.set_offline_mode(True)
+        self.guide.set_offline(True)
+        self.product_type = None
+        self.write_verified = False
+        self.installed = {}
+        self._device = ("file", Path(path).name)
+        self._draft_source_name = tr("Original layout")
+        self._draft_metrics = None
+        self.draft = draft
+        self.draft_view = "draft"
+        self._render_draft()
+        return True
+
+    def save_draft(self, path: Path, *, replace: bool = False) -> bool:
+        if self.draft is None or self.worker.busy:
+            return False
+        self.draft.save(Path(path), replace=replace)
+        self._refresh()
+        self.statusBar().showMessage(tr("Draft saved locally: {name}. The iPhone was not changed.").format(name=Path(path).name))
+        return True
+
+    def set_draft_view(self, view: str) -> None:
+        if view not in ("original", "draft"):
+            raise ValueError("Unknown draft view")
+        if self.draft is None or self.worker.busy:
+            return
+        self.draft_view = view
+        self._render_draft()
+
+    def _render_draft(self) -> None:
+        if self.draft is None:
+            return
+        vertical = self.scroll.verticalScrollBar().value()
+        horizontal = self.scroll.horizontalScrollBar().value()
+        self.selection.clear()
+        for view, button in self.draft_view_buttons.items():
+            previous = button.blockSignals(True)
+            button.setChecked(view == self.draft_view)
+            button.blockSignals(previous)
+        state = self.draft.origin if self.draft_view == "original" else self.draft.current_state
+        self._set_document(state, self._draft_metrics)
+        self.scroll.verticalScrollBar().setValue(vertical)
+        self.scroll.horizontalScrollBar().setValue(horizontal)
+
+    def _draft_location(self, node_uid: str) -> tuple[int, int] | None:
+        if self.doc is None:
+            return None
+        for page_number, page in enumerate(self.doc.pages, start=1):
+            for index, node in enumerate(page.items):
+                if node.uid == node_uid:
+                    return (page_number, index) if node.kind is ItemKind.APP and not node.is_web_clip else None
+        return None  # Dock and folder-interior apps are deliberately excluded.
+
+    def _draft_swap_intent(self) -> tuple[int, int, int] | None:
+        if self.draft is None or self.draft_view != "draft" or len(self.selection) != 2:
+            return None
+        spots = [self._draft_location(uid) for uid in sorted(self.selection)]
+        if any(spot is None for spot in spots) or spots[0][0] != spots[1][0]:
+            return None
+        return spots[0][0], spots[0][1], spots[1][1]
+
+    def _select_draft_app(self, node_uid: str) -> None:
+        if self.draft is None:
+            return
+        if self.draft_view != "draft":
+            self.statusBar().showMessage(tr("You are viewing the original. Switch to Draft layout to select apps."))
+            return
+        if not node_uid:
+            self.selection.clear()
+        else:
+            spot = self._draft_location(node_uid)
+            if spot is None:
+                self.statusBar().showMessage(tr("Only ordinary apps on the same Home Screen page can be swapped. Widgets, folders and the Dock stay unchanged."))
+                return
+            chosen = [self._draft_location(uid) for uid in self.selection]
+            if node_uid in self.selection:
+                self.selection.remove(node_uid)
+            elif chosen and any(other is not None and other[0] != spot[0] for other in chosen):
+                self.statusBar().showMessage(tr("Choose both apps on the same logical page."))
+                return
+            elif len(self.selection) >= 2:
+                self.selection = {node_uid}
+            else:
+                self.selection.add(node_uid)
+        self._apply_selection()
+        self._update_actions()
+
+    def _swap_draft_apps(self) -> None:
+        if self.draft is None or self.worker.busy:
+            return
+        intent = self._draft_swap_intent()
+        if intent is None:
+            self.statusBar().showMessage(tr("Select two ordinary apps on the same logical page, then choose Swap selected apps."))
+            return
+        try:
+            self.draft.swap(*intent)
+        except DraftError as exc:
+            self.statusBar().showMessage(self._draft_error(exc))
+            return
+        self._render_draft()
+        self.statusBar().showMessage(tr("The two apps were swapped in the local draft only. The iPhone was not changed."))
+
+    @staticmethod
+    def _draft_error(exc: Exception) -> str:
+        if isinstance(exc, DraftError) and exc.code == "no_op":
+            return tr("These two entries are identical, so swapping them would not change the draft.")
+        if isinstance(exc, DraftError) and exc.code in {"unsupported_item", "unsupported_widget", "unsupported_folder", "unsupported_span", "overflow", "unsupported_shape"}:
+            return tr("This layout is outside the supported offline draft format. Keep it in read-only preview.")
+        if isinstance(exc, DraftError) and exc.code in {"invalid_plist", "too_large"}:
+            return tr("The layout data is invalid or exceeds the offline draft limits. Open a valid original backup.")
+        if isinstance(exc, DraftError) and exc.code in {"invalid_page", "invalid_index", "unsupported_endpoint"}:
+            return tr("Select two ordinary apps on the same logical page. Widgets, folders and the Dock cannot be swapped.")
+        if isinstance(exc, DraftError) and exc.code in {"payload_changed", "shape_changed", "intent_mismatch", "inventory_changed", "geometry_changed", "serialization_changed"}:
+            return tr("The draft does not preserve the original layout and the two requested changes. Open the original backup and start a new draft.")
+        return tr("The draft operation was stopped: {why}").format(why=exc)
+
+    def _show_draft_error(self, title: str, exc: Exception) -> None:
+        box = QMessageBox(self)
+        box.setWindowTitle(title)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setTextFormat(Qt.TextFormat.PlainText)
+        box.setText(self._draft_error(exc))
+        box.exec()
+
+    def _start_draft(self) -> None:
+        try:
+            self.start_draft()
+        except Exception as exc:
+            self._show_draft_error(tr("Cannot start draft"), exc)
+
+    def _open_draft_file(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, tr("Open offline draft"), str(self.root / "drafts"), tr("Offline draft (*.hsdraft)"))
+        if path:
+            try:
+                self.open_draft(Path(path))
+            except Exception as exc:
+                self._show_draft_error(tr("Cannot open draft"), exc)
+
+    def _save_draft_dialog(self) -> bool:
+        if self.draft is None or self.worker.busy:
+            return False
+        folder = self.root / "drafts"
+        try:
+            private_directory(folder)
+        except OSError as exc:
+            self._show_draft_error(tr("Cannot save draft"), exc)
+            return False
+        suggested = self.draft.path or folder / f"draft_{datetime.now():%Y%m%d_%H%M%S}.hsdraft"
+        path, _ = QFileDialog.getSaveFileName(self, tr("Save offline draft"), str(suggested), tr("Offline draft (*.hsdraft)"))
+        if not path:
+            return False
+        target = Path(path)
+        if not target.suffix:
+            target = target.with_suffix(".hsdraft")
+            if target.exists() and QMessageBox.question(
+                self, tr("Replace saved draft?"),
+                tr("A draft with this name already exists. Replace that local draft?"),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            ) != QMessageBox.StandardButton.Yes:
+                return False
+        try:
+            return self.save_draft(target, replace=target.exists())
+        except Exception as exc:
+            self._show_draft_error(tr("Cannot save draft"), exc)
+            return False
+
+    def _confirm_draft_transition(self) -> bool:
+        if self.draft is None or not self.draft.dirty:
+            return True
+        box = QMessageBox(self)
+        box.setWindowTitle(tr("Unsaved local draft"))
+        box.setTextFormat(Qt.TextFormat.PlainText)
+        box.setText(tr("This draft has unsaved changes on this Mac. Save them before leaving? The iPhone has not been changed."))
+        box.setStandardButtons(QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel)
+        box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        box.button(QMessageBox.StandardButton.Save).setText(tr("Save draft"))
+        box.button(QMessageBox.StandardButton.Discard).setText(tr("Discard local changes"))
+        box.button(QMessageBox.StandardButton.Cancel).setText(tr("취소"))
+        answer = box.exec()
+        if answer == QMessageBox.StandardButton.Save:
+            return self._save_draft_dialog()
+        return answer == QMessageBox.StandardButton.Discard
+
+    def end_draft(self) -> bool:
+        if self.draft is None or self.worker.busy:
+            return False
+        if not self._confirm_draft_transition():
+            return False
+        original = self.draft.origin
+        self.draft = None
+        self.selection.clear()
+        self._device = ("file", self._draft_source_name or tr("Original layout"))
+        self._set_document(original, self._draft_metrics)
         return True
 
     # ------------------------------------------------------------------ 구성
@@ -507,6 +748,17 @@ class MainWindow(QMainWindow):
         self.act_about = QAction(tr("정보"), self)
         self.act_about.setToolTip(tr("판·라이선스·소스"))
         self.act_about.triggered.connect(self._about)
+        self.act_start_draft = QAction(tr("Start offline draft"), self)
+        self.act_start_draft.triggered.connect(self._start_draft)
+        self.act_open_draft = QAction(tr("Open draft"), self)
+        self.act_open_draft.triggered.connect(self._open_draft_file)
+        self.act_save_draft = QAction(tr("Save draft"), self)
+        self.act_save_draft.setShortcut(QKeySequence.StandardKey.Save)
+        self.act_save_draft.triggered.connect(self._save_draft_dialog)
+        self.act_end_draft = QAction(tr("End draft"), self)
+        self.act_end_draft.triggered.connect(self.end_draft)
+        self.act_swap_draft = QAction(tr("Swap selected apps"), self)
+        self.act_swap_draft.triggered.connect(self._swap_draft_apps)
 
         bar.addAction(self.act_load)
         bar.addAction(self.act_open)
@@ -546,6 +798,9 @@ class MainWindow(QMainWindow):
         # 두 자리가 저절로 같이 움직인다.
         menu = self.menuBar()
         self.menu_program = menu.addMenu(tr("프로그램"))
+        for action in (self.act_start_draft, self.act_open_draft, self.act_save_draft, self.act_end_draft):
+            self.menu_program.addAction(action)
+        self.menu_program.addSeparator()
         self.menu_program.addAction(self.act_settings)
         self.menu_help = menu.addMenu(tr("도움말"))
         self.menu_help.addAction(self.act_about)
@@ -644,6 +899,48 @@ class MainWindow(QMainWindow):
 
         side_box = QVBoxLayout(side)
         side_box.setContentsMargins(8, 8, 8, 8)
+        self.draft_action_buttons: dict[str, QPushButton] = {}
+
+        def draft_button(name: str, action: QAction) -> QPushButton:
+            button = QPushButton(action.text())
+            button.setObjectName("draft_" + name)
+            button.clicked.connect(action.trigger)
+            def sync() -> None:
+                button.setText(action.text())
+                button.setEnabled(action.isEnabled())
+                button.setToolTip(action.toolTip())
+            action.changed.connect(sync)
+            self.draft_action_buttons[name] = button
+            sync()
+            return button
+
+        draft_files = QHBoxLayout()
+        draft_files.addWidget(draft_button("start", self.act_start_draft))
+        draft_files.addWidget(draft_button("open", self.act_open_draft))
+        side_box.addLayout(draft_files)
+        self.draft_editor_controls = QWidget()
+        draft_box = QVBoxLayout(self.draft_editor_controls)
+        draft_box.setContentsMargins(0, 0, 0, 0)
+        draft_save = QHBoxLayout()
+        draft_save.addWidget(draft_button("save", self.act_save_draft))
+        draft_save.addWidget(draft_button("end", self.act_end_draft))
+        draft_box.addLayout(draft_save)
+        draft_views = QHBoxLayout()
+        self.draft_view_group = QButtonGroup(self)
+        self.draft_view_group.setExclusive(True)
+        self.draft_view_buttons: dict[str, QPushButton] = {}
+        for view, label in (("original", tr("Original layout")), ("draft", tr("Draft layout"))):
+            button = QPushButton(label)
+            button.setObjectName("draft_view_" + view)
+            button.setCheckable(True)
+            button.toggled.connect(lambda checked, selected=view: self.set_draft_view(selected) if checked else None)
+            self.draft_view_group.addButton(button)
+            self.draft_view_buttons[view] = button
+            draft_views.addWidget(button)
+        draft_box.addLayout(draft_views)
+        draft_box.addWidget(draft_button("swap", self.act_swap_draft))
+        self.draft_editor_controls.hide()
+        side_box.addWidget(self.draft_editor_controls)
         side_box.addWidget(self.change_head)
         side_box.addWidget(self.change_list, 1)
         side_box.addWidget(self.unplaced_head)
@@ -712,6 +1009,13 @@ class MainWindow(QMainWindow):
         self.profile_buttons["pages"].setText(tr("Individual pages"))
         self.profile_buttons["duo"].setText(tr("iPhone Duo · two-page preview"))
         self.profile_label.setText(tr("Preview layout"))
+        self.act_start_draft.setText(tr("Start offline draft"))
+        self.act_open_draft.setText(tr("Open draft"))
+        self.act_save_draft.setText(tr("Save draft"))
+        self.act_end_draft.setText(tr("End draft"))
+        self.act_swap_draft.setText(tr("Swap selected apps"))
+        self.draft_view_buttons["original"].setText(tr("Original layout"))
+        self.draft_view_buttons["draft"].setText(tr("Draft layout"))
         self.note.setText(
             tr("아이콘을 끌어 옮기고, 폴더는 두 번 눌러 엽니다.\n"
             "폴더 한가운데에 놓으면 폴더 안으로, 옆에 놓으면 그 자리에 끼웁니다.")
@@ -751,6 +1055,12 @@ class MainWindow(QMainWindow):
     def _set_document(self, state: list[Any], metrics: Optional[dict[str, Any]]) -> None:
         self.metrics = metrics
         self.doc = LayoutDocument(state, Grid.from_metrics(metrics))
+        self._draft_start_error = None
+        if self.draft is None:
+            try:
+                analyze_layout(state)
+            except DraftError as exc:
+                self._draft_start_error = self._draft_error(exc)
         self.writable = self.doc.verify_identity()
         if not self.writable:
             # 편집 전인데 원본과 다르다면 우리가 해석하지 못한 구조가 있다는 뜻이다.
@@ -777,12 +1087,14 @@ class MainWindow(QMainWindow):
         # Dock widgets in Duo groups are owned by those groups, not the bottom row.
         if self.dock_frame is not None and not self._duo_groups:
             self.dock_row.removeWidget(self.dock_frame)
+            self.dock_frame.hide()
             self.dock_frame.deleteLater()
         self.dock_frame = None
         while self.flow.count():
             item = self.flow.takeAt(0)
             widget = item.widget() if item is not None else None
             if widget is not None:
+                widget.hide()
                 widget.setParent(None)
                 widget.deleteLater()
         self._pages = []
@@ -790,6 +1102,7 @@ class MainWindow(QMainWindow):
         self._duo_groups = []
         if self.folder_panel is not None:
             self.folder_holder.removeWidget(self.folder_panel)
+            self.folder_panel.hide()
             self.folder_panel.deleteLater()
             self.folder_panel = None
         if self.doc is None:
@@ -895,6 +1208,8 @@ class MainWindow(QMainWindow):
         return self.doc.unplaced_apps(self.installed)
 
     def _on_installed(self, installed: object) -> None:
+        if self.draft is not None:
+            return
         self.installed = dict(installed or {})
         self._show_unplaced(self._unplaced())
         if self.installed:
@@ -905,7 +1220,7 @@ class MainWindow(QMainWindow):
         busy = self.worker.busy
         reason = self.readonly_reason
         editable = has and not reason and not busy
-        dirty = bool(has and self.doc.dirty)
+        dirty = self.draft.dirty if self.draft is not None else bool(has and self.doc.dirty)
         self.act_undo.setEnabled(editable and self.doc.can_undo)
         self.act_redo.setEnabled(editable and self.doc.can_redo)
         self.act_add_page.setEnabled(editable)
@@ -916,18 +1231,44 @@ class MainWindow(QMainWindow):
         connected = self._device[0] == "device"
         self.act_apply.setEnabled(editable and dirty and self.writable and self.write_verified and connected)
         self.act_compatibility.setEnabled(editable and self.writable and connected and not dirty)
-        self.act_icons.setEnabled(has and connected and not self.offline and not busy)
-        self.act_load.setEnabled(not busy)
+        self.act_icons.setEnabled(has and connected and not self.offline and self.draft is None and not busy)
+        self.act_load.setEnabled(not busy and self.draft is None)
         self.act_open.setEnabled(not busy)
         self.act_restore.setEnabled(connected and not busy and not reason)
         for button in self.profile_buttons.values():
             button.setEnabled(not busy)
+        self.act_start_draft.setEnabled(has and self.offline and self._device[0] == "file" and self.draft is None and not busy and self._draft_start_error is None)
+        self.act_start_draft.setToolTip(self._draft_start_error or tr("Create a local draft from this backup. No iPhone connection is made."))
+        self.act_open_draft.setEnabled(not busy)
+        self.act_save_draft.setEnabled(self.draft is not None and not busy)
+        self.act_end_draft.setEnabled(self.draft is not None and not busy)
+        self.act_swap_draft.setEnabled(self._draft_swap_intent() is not None and not busy)
+        self.act_swap_draft.setToolTip(tr("Select two ordinary apps on the same logical page, then choose Swap selected apps."))
+        self.draft_editor_controls.setVisible(self.draft is not None)
+        for button in self.draft_view_buttons.values():
+            button.setEnabled(self.draft is not None and not busy)
         self.preview_banner.setVisible(bool(reason))
         self.preview_banner.setText(
             tr("Read-only preview — {reason}\nWidget cards show size and stack membership, not live content.").format(reason=reason)
             if reason else ""
         )
-        if reason:
+        if self.draft is not None:
+            self.act_undo.setEnabled(self.draft.can_undo and not busy)
+            self.act_redo.setEnabled(self.draft.can_redo and not busy)
+            self.preview_banner.setText(tr("Offline draft — changes stay on this Mac. iPhone reads, writes, restoration and compatibility tests are disabled."))
+            self.note.setText(
+                tr("Click two ordinary apps on the same page, then Swap selected apps. Widgets, folders and the Dock stay fixed.")
+                if self.draft_view == "draft" else tr("You are viewing the original. Switch to Draft layout to select apps.")
+            )
+            changes = self.draft.diff()
+            self.change_head.setText(tr("Draft differences: {n}").format(n=len(changes)))
+            self.change_list.clear()
+            self.change_list.addItems([
+                tr("Page {page}, item {item}: {before} → {after}").format(
+                    page=change.page, item=change.index + 1, before=change.before_label, after=change.after_label)
+                for change in changes
+            ] or [tr("The draft matches the original layout.")])
+        elif reason:
             self.note.setText(tr("Double-click folders to inspect them. Dragging, edits, compatibility tests, and restoration are disabled."))
             self.change_head.setText(tr("Read-only preview"))
             self.change_list.clear()
@@ -991,6 +1332,11 @@ class MainWindow(QMainWindow):
         )
 
     def _undo(self) -> None:
+        if self.draft is not None:
+            if not self.worker.busy and self.draft.undo():
+                self.draft_view = "draft"
+                self._render_draft()
+            return
         if self.doc is None or self.readonly_reason:
             return
         try:
@@ -1000,6 +1346,11 @@ class MainWindow(QMainWindow):
         self._refresh()
 
     def _redo(self) -> None:
+        if self.draft is not None:
+            if not self.worker.busy and self.draft.redo():
+                self.draft_view = "draft"
+                self._render_draft()
+            return
         if self.doc is None or self.readonly_reason:
             return
         try:
@@ -1052,12 +1403,18 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(message)
 
     def _on_selected(self, node_uid: str) -> None:
+        if self.draft is not None:
+            self._select_draft_app(node_uid)
+            return
         self.selection = {node_uid} if node_uid else set()
         self._apply_selection()
         self._update_actions()
 
     def _on_toggled(self, node_uid: str) -> None:
         """Ctrl 을 누른 채 누른 것 — 골라 놓은 것에 더하거나 뺀다."""
+        if self.draft is not None:
+            self._select_draft_app(node_uid)
+            return
         if not node_uid:
             return
         self.selection.symmetric_difference_update({node_uid})
@@ -1163,6 +1520,9 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------ 기기
 
     def _load(self) -> None:
+        if self.draft is not None:
+            self.statusBar().showMessage(tr("End the offline draft before choosing to read a device."))
+            return
         if self.doc is not None and self.doc.dirty:
             answer = QMessageBox.question(
                 self,
@@ -1189,12 +1549,12 @@ class MainWindow(QMainWindow):
             return
 
     def _fetch_icons(self) -> None:
-        if self.doc is None or self.offline or self._device[0] != "device":
+        if self.draft is not None or self.doc is None or self.offline or self._device[0] != "device":
             return
         self.worker.fetch_icons(wanted_icons(self.doc))
 
     def _apply(self) -> None:
-        if self.doc is None or not self.write_verified or self.readonly_reason:
+        if self.draft is not None or self.doc is None or not self.write_verified or self.readonly_reason:
             return
         changes = self.doc.changes()
         if not changes:
@@ -1208,7 +1568,7 @@ class MainWindow(QMainWindow):
         self.worker.apply(self.doc.to_state(), reason="before-edit", expected_state=self.doc.origin)
 
     def _check_compatibility(self) -> None:
-        if self.doc is None or self.readonly_reason or self.doc.dirty or not self.writable or self.worker.busy or self._device[0] != "device":
+        if self.draft is not None or self.doc is None or self.readonly_reason or self.doc.dirty or not self.writable or self.worker.busy or self._device[0] != "device":
             return
         dialog = ApplyDialog([tr("Write the current layout back unchanged, then read it again to verify compatibility. This is a real write to the iPhone.")], [name for _bid, name in self._unplaced()], self)
         dialog.setWindowTitle(tr("Write compatibility test"))
@@ -1216,7 +1576,7 @@ class MainWindow(QMainWindow):
             self.worker.check_compatibility(self.doc.origin)
 
     def _restore(self) -> None:
-        if self.readonly_reason or self._device[0] != "device" or self.worker.busy:
+        if self.draft is not None or self.readonly_reason or self._device[0] != "device" or self.worker.busy:
             return
         backups = self.worker.backups.list_backups()
         if not backups:
@@ -1239,6 +1599,8 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------- 워커 응답
 
     def _on_loaded(self, state: object, metrics: object, info: object) -> None:
+        if self.draft is not None:
+            return
         self.write_verified = False
         self.product_type = getattr(info, "product_type", None)
         if self.product_type == "iPhone19,4":
@@ -1267,6 +1629,8 @@ class MainWindow(QMainWindow):
             )
 
     def _on_applied(self, result: object) -> None:
+        if self.draft is not None:
+            return
         payload = dict(result)  # type: ignore[arg-type]
         comparison = payload["comparison"]
         self.write_verified = comparison.safe
@@ -1351,6 +1715,9 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event) -> None:  # noqa: N802
         if self.worker.busy:
             self.statusBar().showMessage(tr("A device operation is running. Wait for it to finish before closing."))
+            event.ignore()
+            return
+        if not self._confirm_draft_transition():
             event.ignore()
             return
         if self.doc is not None and self.doc.dirty:

@@ -964,7 +964,7 @@ def test_version_is_one_point_zero_and_shows_in_the_title():
 
     assert (version.VERSION_MAJOR, version.VERSION_MINOR) == (1, 0)
     assert 0 <= version.VERSION_PATCH <= 99
-    assert version.VERSION_TEXT == f"v01.00.{version.VERSION_PATCH:02d}-mac.zh.2"
+    assert version.VERSION_TEXT == f"v01.00.{version.VERSION_PATCH:02d}-mac.zh.3"
 
     source = (Path(__file__).resolve().parents[1] / "src/ipsm/ui/main_window.py").read_text(
         encoding="utf-8"

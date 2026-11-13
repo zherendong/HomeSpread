@@ -1,8 +1,8 @@
 # HomeSpread 中文 macOS 版
 
-在 Mac 上展开 iPhone 的多页主屏幕。iPhone Duo、包含小组件或未知结构的布局只读预览；通过能力检查的普通布局保留编辑流程。
+在 Mac 上展开 iPhone 的多页主屏幕。iPhone Duo 与小组件布局可离线预览，并在独立草稿中交换同页普通 App；手机写入仍禁用。未知结构保持只读。通过能力检查的普通设备布局保留原有编辑流程。
 
-本分支基于 [humanlyj/HomeSpread](https://github.com/humanlyj/HomeSpread) 的提交 `0cfbc6866e9748105cbc3c9e743ad0b1788e6775`。这是中文 macOS 移植版，版本 `1.0.22-mac.zh.2`，保留 GPL-3.0-or-later 许可和原作者历史。来源核查见 [PROVENANCE.zh-CN.md](PROVENANCE.zh-CN.md)，原仓库的 Windows 说明见 [README.md](README.md)。
+本分支基于 [humanlyj/HomeSpread](https://github.com/humanlyj/HomeSpread) 的提交 `0cfbc6866e9748105cbc3c9e743ad0b1788e6775`。这是中文 macOS 移植版，版本 `1.0.22-mac.zh.3`，保留 GPL-3.0-or-later 许可和原作者历史。来源核查见 [PROVENANCE.zh-CN.md](PROVENANCE.zh-CN.md)，原仓库的 Windows 说明见 [README.md](README.md)。
 
 ## Duo 与小组件：只读预览
 
@@ -17,6 +17,23 @@
 
 ```sh
 ./run_macos.command --preview /path/to/layout.plist --profile duo
+```
+
+## 离线草稿编辑
+
+1. 点击“打开备份文件”，选择已有 `.plist`；按需选择“iPhone Duo · 双页预览”。整个流程无需连接手机。
+2. 点击“开始离线草稿”。在同一个逻辑页面依次选择两个普通 App，再点击“交换所选 App”。两个页面即使并排显示，也不能跨页交换。
+3. 侧栏列出原始布局到草稿的最终差异。使用“原始布局”和“草稿布局”按钮对照；原始视图不能执行交换。
+4. 使用“撤销”“重做”调整草稿。只能交换页面中的普通 App，不开放文件夹内容、Dock、小组件、拖放、分组、重命名或增删页面。
+5. 点击“保存草稿”，另存为 `.hsdraft` 文件。以后通过“打开草稿”继续；打开时会重放保存的交换步骤并核对最终布局。保存只保留当前有效步骤，已撤销的重做分支不写入文件。
+6. “结束草稿”回到原始布局的离线预览。关闭、切换文件或结束草稿前，未保存内容提供保存、放弃和取消选择。
+
+**草稿不是手机备份，也不是写入许可。** 原始 `.plist` 文件不变；`.hsdraft` 使用独立格式，不能在“从备份恢复”中使用。草稿中包括原始布局、候选布局、交换步骤与完整性摘要，包含个人应用信息，应保存在本机并避免公开分享。默认保存位置为资料目录的 `drafts/`，也可以在保存窗口选择其它目录。
+
+草稿期间禁止读取设备、下载图标、应用修改、恢复和原样写回校验。草稿操作不进入设备工作线程，切换预览方式或伪造会话校验标记不能解除写入限制。布局不符合已验证的结构、尺寸或容量约束时，不开启草稿。
+
+```sh
+./run_macos.command --draft /path/to/layout.hsdraft --profile duo
 ```
 
 ## 支持编辑的普通布局
@@ -39,6 +56,7 @@
 | 内容 | 位置 |
 |---|---|
 | 备份、日志和设置 | `~/Library/Application Support/HomeSpread/` |
+| 离线草稿 | 资料目录中的 `drafts/` 或保存时选择的目录；扩展名 `.hsdraft` |
 | 每台设备的备份 | `backups/<设备标识的 SHA-256>/` |
 | 新建的本地设备配对凭据 | `~/Library/Application Support/HomeSpread/pairing/` |
 | 可重新下载的图标 | `~/Library/Caches/HomeSpread/icons/` |
@@ -74,7 +92,10 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q
 
 ## 验证边界
 
-初版移植的 173 项测试记录见 [_workspace/04_macos-qa_final-report.md](_workspace/04_macos-qa_final-report.md)。这些测试遗漏了带空 `iconLists` 的真实小组件结构，不能作为小组件或 Duo 写回证据。此次 264 项测试、383 项子测试通过，mac.zh.2 应用包的签名及离线启动核验通过。识别、跨格预览、离线模式及写入拒绝的验证见 [小组件与 Duo 验收](_workspace/05_widget-duo-qa.md)。
+`mac.zh.3` 源码验证为 431 项测试、439 项子测试通过。离线草稿的保存、重放、撤销/重做、差异显示和设备隔离见 [离线草稿验收](_workspace/06_offline-draft-qa.md)。纯编辑规则从研究阶段提升到 `ipsm.draft_rules`，本机文件层为 `ipsm.drafts`；不包含协议发送或写入能力。
+
+
+初版移植的 173 项测试记录见 [_workspace/04_macos-qa_final-report.md](_workspace/04_macos-qa_final-report.md)。这些测试遗漏了带空 `iconLists` 的真实小组件结构，不能作为小组件或 Duo 写回证据。此前小组件修复阶段的 264 项测试、383 项子测试通过，mac.zh.2 应用包的签名及离线启动核验通过。识别、跨格预览、离线模式及写入拒绝的验证见 [小组件与 Duo 验收](_workspace/05_widget-duo-qa.md)。
 
 已在获授权的 iOS 27.3 设备上验证 USB 发现、连接、读取主屏幕、读取网格尺寸和创建校验备份。设备清单和原始布局保留在本地，不随源码公开。尚未执行真实 `setIconState`、原样写回或恢复；软件测试不能代替对应 iOS 版本的真实写入验证。
 

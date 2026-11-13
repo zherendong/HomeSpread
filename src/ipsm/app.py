@@ -87,10 +87,11 @@ def main() -> int:
     parser.add_argument("--screenshot", type=Path, help="配合 --smoke-test 保存窗口截图")
     parser.add_argument("--demo", action="store_true", help="打开虚构演示布局，不连接 iPhone")
     parser.add_argument("--preview", type=Path, help="离线预览本地布局备份，不连接 iPhone")
+    parser.add_argument("--draft", type=Path, help="打开本地离线草稿，不连接 iPhone")
     parser.add_argument("--profile", choices=("pages", "duo"), default="pages", help="逐页或 Duo 双页预览")
     args = parser.parse_args()
-    if args.demo and args.preview:
-        parser.error("--demo 和 --preview 不能同时使用")
+    if sum(bool(value) for value in (args.demo, args.preview, args.draft)) > 1:
+        parser.error("--demo、--preview 和 --draft 只能选择一种")
     if os.name == "posix":
         os.umask(0o077)
     # 언어를 가장 먼저 고른다. 시작하다 실패했을 때 뜨는 말도 사용자의 말이어야 한다.
@@ -142,7 +143,7 @@ def main() -> int:
 
     translate_qt()
     i18n.on_language_changed(translate_qt)
-    window = MainWindow(root, offline=bool(args.demo or args.preview))
+    window = MainWindow(root, offline=bool(args.demo or args.preview or args.draft))
     window.set_preview_profile(args.profile)
     if args.demo:
         from ipsm.demo import demo_state
@@ -156,6 +157,15 @@ def main() -> int:
             window.worker.shutdown()
             return _fatal(tr("Cannot open the preview file: {why}").format(why=exc))
         if not preview_ok:
+            window.worker.shutdown()
+            return 4
+    elif args.draft:
+        try:
+            draft_ok = window.open_draft(args.draft)
+        except Exception as exc:
+            window.worker.shutdown()
+            return _fatal(tr("Cannot open the offline draft: {why}").format(why=exc))
+        if not draft_ok:
             window.worker.shutdown()
             return 4
     # 창을 먼저 만들고, 보이기 직전에 그림을 내린다. 순서를 뒤집으면 그림이 사라진
