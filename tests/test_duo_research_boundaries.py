@@ -233,7 +233,12 @@ def test_research_modules_have_no_device_or_transport_imports():
                             and {alias.name for alias in node.names} <= {'NAME'})
                     )
                 )
-                assert trusted_reexport or trusted_simulator_edge or trusted_package_edge or (node.level == 0 and (node.module or '').split('.')[0] in allowed), path
+                trusted_analysis_edge = (
+                    path == ROOT / 'research/duo_evidence_analysis.py' and node.level == 0
+                    and node.module == 'ipsm.draft_rules'
+                    and {alias.name for alias in node.names} <= {'analyze_layout'}
+                )
+                assert trusted_reexport or trusted_simulator_edge or trusted_package_edge or trusted_analysis_edge or (node.level == 0 and (node.module or '').split('.')[0] in allowed), path
             elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
                 assert node.func.id not in {'eval','exec','__import__','compile'}, path
 

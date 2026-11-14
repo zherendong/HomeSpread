@@ -2,9 +2,11 @@
 
 ## 只读证据、预检与模拟的边界
 
-`mac.zh.4` 增加 `.hsevidence` 查询收据和 `.hspreflight` 阻塞报告。界面仅加载本地文件，不调用采集器；真实 USB 采集必须作为另行明确范围的操作，不能因“预检”而自动执行。当前阶段未运行真机采集或写入。假设备模拟器没有真实传输入口，匹配只代表导出字段检查，所有结果仍 `can_write=False`。
+`mac.zh.4` 增加 `.hsevidence` 查询收据和 `.hspreflight` 阻塞报告。界面仅加载本地文件，不调用采集器；真实 USB 采集必须作为另行明确范围的操作，不能因“预检”而自动执行。初始实现验收未运行真机采集或写入；后续经授权的采集结果仅保留在本机证据目录。假设备模拟器没有真实传输入口，匹配只代表导出字段检查，所有结果仍 `can_write=False`。
 
 证据、草稿和报告都含私人布局信息，不能进入 Git 或源码包。新只读适配器固定本地端点，不接受环境变量重定向，不自动配对。具体数据结构及限制见 `_workspace/02_contracts/evidence-preflight.contract.md`。
+
+`scripts/analyze_duo_evidence.py` 只分析已保存证据，纯规则在 `research/duo_evidence_analysis.py`。格式 3 的行结构不能自动视作物理坐标，缺失标签不能当作非隐藏；工具不生成排除清单或写入载荷。具体范围见 `research/DUO_EVIDENCE_ANALYSIS.zh-CN.md`。这一源码研究工具不改变已安装 `mac.zh.4` 的可执行代码。
 
 ## 离线草稿与设备写入的区别
 

@@ -23,7 +23,7 @@ identity_before → layout_v2_before → metrics → apps_user → apps_system
 
 ## 真实只读适配器的边界
 
-应用界面不调用真实采集器。源码 CLI 只有同时提供明确的 USB 模式及范围确认后，才延迟导入适配器；默认、本地导入和帮助均不访问设备。本阶段未执行真实采集。
+应用界面不调用真实采集器。源码 CLI 只有同时提供明确的 USB 模式及范围确认后，才延迟导入适配器；默认、本地导入和帮助均不访问设备。工具的初始实现验收仅使用假对象；真实采集须独立取得范围授权，个人结果仅保留本地。
 
 - 只查询本地 usbmux 端点，不接受环境变量重定向到远端。
 - 仅接受一台已经信任的 USB 设备，`autopair=False`，不新建配对。
@@ -57,3 +57,9 @@ save_preflight_report(path, report, *, replace=False) -> Path
 `research.duo_simulator` 仅构造封闭的内存假传输，不能接收真实适配器或发送回调。24 个内置场景覆盖阻塞、不确定、内容不一致和仅导出字段匹配。一次尝试最多一个模拟发送，没有自动重试或恢复；读回次数有上限，使用新的虚构连接标识。模拟匹配仍不是完整设备验证。
 
 `.hsevidence`、`.hspreflight`、evidence/、preflight_reports/ 均是私人运行资料，不提交源码、不进入分发源码包；它们也不能作为恢复备份使用。
+
+## 已保存证据的研究分析
+
+`scripts/analyze_duo_evidence.py` 使用同一证据加载器，要求采集已完成、来源为 USB 只读且前后身份/格式 2 布局精确一致；否则拒绝生成报告。它不会连接设备补充缺失项。`research.duo_evidence_analysis.analyze_observations` 只接收内存数据，输出固定字段的聚合统计和明确的未知项，无原始标识或请求载荷；`can_write=False`、`device_requests=0`、`payload_generated=False`。
+
+格式 3 压缩投影须逐值、逐类型匹配整个观察值才成立；不能据此推断真实空隙。安装清单保留“未返回标签”“明确返回空标签”“含 hidden 标签”的区别。研究报告不授权写入，也不会回填预检中的 geometry、hidden_pages、widget_settings、hidden_webclips 或 wire_protocol。详细算法、输出与后续证据见[研究说明](../../research/DUO_EVIDENCE_ANALYSIS.zh-CN.md)。
