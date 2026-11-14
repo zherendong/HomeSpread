@@ -964,7 +964,7 @@ def test_version_is_one_point_zero_and_shows_in_the_title():
 
     assert (version.VERSION_MAJOR, version.VERSION_MINOR) == (1, 0)
     assert 0 <= version.VERSION_PATCH <= 99
-    assert version.VERSION_TEXT == f"v01.00.{version.VERSION_PATCH:02d}-mac.zh.3"
+    assert version.VERSION_TEXT == f"v01.00.{version.VERSION_PATCH:02d}-mac.zh.4"
 
     source = (Path(__file__).resolve().parents[1] / "src/ipsm/ui/main_window.py").read_text(
         encoding="utf-8"
@@ -2637,4 +2637,3 @@ if __name__ == "__main__":
     print()
     print("모두 통과" if not failures else f"{failures}개 실패")
     raise SystemExit(1 if failures else 0)
-

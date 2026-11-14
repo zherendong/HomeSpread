@@ -4,7 +4,7 @@
 
 ## 后续实施记录
 
-阶段 A 已在 `mac.zh.3` 实现为独立离线草稿界面。纯规则从本研究提升到 `src/ipsm/draft_rules.py`，`research/duo_planner.py` 保留兼容导出；读写载荷研究不进入应用运行路径。新增保存、重放和界面验收见 [离线草稿契约](../_workspace/02_contracts/offline-draft.contract.md) 与 [验收记录](../_workspace/06_offline-draft-qa.md)。下面保留研究阶段的证据、范围与当时结果；阶段 B～E 未因此完成，手机写入仍禁用。
+阶段 A 已在 `mac.zh.3` 实现为独立离线草稿界面。纯规则从本研究提升到 `src/ipsm/draft_rules.py`，`research/duo_planner.py` 保留兼容导出；读写载荷研究不进入应用运行路径。新增保存、重放和界面验收见 [离线草稿契约](../_workspace/02_contracts/offline-draft.contract.md) 与 [验收记录](../_workspace/06_offline-draft-qa.md)。下面保留研究阶段的证据、范围与当时结果；阶段 B/C 的工具和模拟在 `mac.zh.4` 继续实现为只读证据包、草稿预检与假设备故障模拟，见 [契约](../_workspace/02_contracts/evidence-preflight.contract.md) 和 [验收](../_workspace/07_preflight-qa.md)。真实采集、实际写入与阶段 D/E 仍未执行，手机写入禁用不变。
 
 ## 结论
 

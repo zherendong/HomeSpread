@@ -27,6 +27,7 @@ Duo 写回研究与当前已安装的只读能力分开记录：[方案与离线
 | [技术栈决策](_workspace/02_desktop-app-architect_adr-001-stack.md) | Python、Qt、工作线程及依赖边界。 |
 | [布局与同步实现](_workspace/02_layout-sync-engineer_implementation.md) | 原始布局保留、备份和同步实现说明。 |
 | [界面规格](_workspace/02_ui-engineer_screen-spec.md) | 页面、文件夹、拖放、状态和确认交互。 |
+| [证据与预检验收](_workspace/07_preflight-qa.md) | 独立查询收据、草稿预检、假设备故障模拟与零真机操作。 |
 | [离线草稿验收](_workspace/06_offline-draft-qa.md) | 同页 App 交换、撤销/重做、专用草稿文件与设备隔离。 |
 | [小组件与 Duo 验收](_workspace/05_widget-duo-qa.md) | 跨格只读预览、Duo 双页和不可绕过的写入拒绝。 |
 | [macOS 独立验收](_workspace/04_macos-qa_final-report.md) | 自动测试、平台检查和未进行的真机写入验证。 |
@@ -37,6 +38,7 @@ Duo 写回研究与当前已安装的只读能力分开记录：[方案与离线
 |---|---|
 | [设备桥](_workspace/02_contracts/device-bridge.contract.md) | USB 选择、连接、设备信息、布局与图标接口。 |
 | [布局模型](_workspace/02_contracts/layout-model.contract.md) | 条目标识、网格、容器、移动、分组与撤销。 |
+| [证据与预检](_workspace/02_contracts/evidence-preflight.contract.md) | 只读采集范围、证据格式、未知项、报告与模拟器边界。 |
 | [同步与备份](_workspace/02_contracts/sync-engine.contract.md) | 写入保护、设备归属、完整性和恢复。 |
 | [界面与工作线程](_workspace/02_contracts/ui-viewmodel.contract.md) | 异步结果、应用前确认、校验许可和恢复入口。 |
 

@@ -30,3 +30,9 @@ pairing/
 # 离线草稿包含个人主屏幕原始数据，不能提交或公开分发。
 drafts/
 *.hsdraft
+
+# 证据包和预检报告含设备及应用信息，只保留本地。
+evidence/
+preflight_reports/
+*.hsevidence
+*.hspreflight

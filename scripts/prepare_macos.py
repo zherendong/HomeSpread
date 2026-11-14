@@ -57,9 +57,9 @@ def main():
     source_files.update((ROOT / "packaging").glob("*.json"))
     source_files.add(ROOT / ".github/FUNDING.yml")
     # Drafts are private data even if a user saves one beneath a source directory.
-    private_parts = {"drafts", "backups", "logs", "pairing", "cache", "__pycache__"}
+    private_parts = {"drafts", "backups", "logs", "pairing", "cache", "__pycache__", "evidence", "preflight_reports"}
     source_files = {path for path in source_files
-                    if path.suffix.lower() != ".hsdraft"
+                    if path.suffix.lower() not in {".hsdraft", ".hsevidence", ".hspreflight"}
                     and not private_parts.intersection(path.relative_to(ROOT).parts)}
     with zipfile.ZipFile(OUT / "HomeSpread-source.zip", "w", zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(source_files):

@@ -1,5 +1,11 @@
 # HomeSpread（早期仓库目录名：iPhoneScreenManager）
 
+## 只读证据、预检与模拟的边界
+
+`mac.zh.4` 增加 `.hsevidence` 查询收据和 `.hspreflight` 阻塞报告。界面仅加载本地文件，不调用采集器；真实 USB 采集必须作为另行明确范围的操作，不能因“预检”而自动执行。当前阶段未运行真机采集或写入。假设备模拟器没有真实传输入口，匹配只代表导出字段检查，所有结果仍 `can_write=False`。
+
+证据、草稿和报告都含私人布局信息，不能进入 Git 或源码包。新只读适配器固定本地端点，不接受环境变量重定向，不自动配对。具体数据结构及限制见 `_workspace/02_contracts/evidence-preflight.contract.md`。
+
 ## 离线草稿与设备写入的区别
 
 `mac.zh.3` 在独立 `OfflineDraft` 中开放同页两个普通 App 的交换、差异查看、撤销/重做和 `.hsdraft` 保存/重开。它不修改原始 `LayoutDocument` 的只读规则，也不进入 `DeviceWorker` 的设备路径。Duo、小组件和未知布局的所有设备写入仍由现有策略拒绝。草稿文件是含个人数据的本机产物，不是可恢复的手机备份，不能提交或打包。

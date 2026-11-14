@@ -2,7 +2,7 @@
 
 在 Mac 上展开 iPhone 的多页主屏幕。iPhone Duo 与小组件布局可离线预览，并在独立草稿中交换同页普通 App；手机写入仍禁用。未知结构保持只读。通过能力检查的普通设备布局保留原有编辑流程。
 
-本分支基于 [humanlyj/HomeSpread](https://github.com/humanlyj/HomeSpread) 的提交 `0cfbc6866e9748105cbc3c9e743ad0b1788e6775`。这是中文 macOS 移植版，版本 `1.0.22-mac.zh.3`，保留 GPL-3.0-or-later 许可和原作者历史。来源核查见 [PROVENANCE.zh-CN.md](PROVENANCE.zh-CN.md)，原仓库的 Windows 说明见 [README.md](README.md)。
+本分支基于 [humanlyj/HomeSpread](https://github.com/humanlyj/HomeSpread) 的提交 `0cfbc6866e9748105cbc3c9e743ad0b1788e6775`。这是中文 macOS 移植版，版本 `1.0.22-mac.zh.4`，保留 GPL-3.0-or-later 许可和原作者历史。来源核查见 [PROVENANCE.zh-CN.md](PROVENANCE.zh-CN.md)，原仓库的 Windows 说明见 [README.md](README.md)。
 
 ## Duo 与小组件：只读预览
 
@@ -36,6 +36,24 @@
 ./run_macos.command --draft /path/to/layout.hsdraft --profile duo
 ```
 
+## 草稿预检与只读证据
+
+在活动草稿右侧点击“草稿预检报告”。它只检查当前本地草稿，不读取手机；可以导入已有 `.hsevidence` 证据包，再导出 `.hspreflight` 报告。没有证据包也能检查草稿，但设备身份、当前布局、安装清单等会明确显示缺失。
+
+报告分别列出局部核对通过、缺少证据、失败、阻塞和尚未验证。查询成功不代表信息完整，导入旧备份不代表手机刚被读取；隐藏页面、真实空隙、组件内部配置等不能自动判定为通过。**当前所有预检报告都保持写入阻塞，不会启用“应用修改”或恢复。**
+
+开发环境可只用本地文件生成证据包和报告：
+
+```sh
+PYTHONPATH=src .venv/bin/python -m ipsm.evidence_collect --from-backup /path/to/layout.plist --output /path/to/local.hsevidence
+PYTHONPATH=src .venv/bin/python -m ipsm.preflight --draft /path/to/layout.hsdraft --evidence /path/to/local.hsevidence --output /path/to/check.hspreflight
+PYTHONPATH=src:. .venv/bin/python -m research.duo_simulator --all
+```
+
+预检 CLI 返回 3 表示报告已生成但写回阻塞，返回 2 表示输入或保存失败。模拟器只运行虚构数据、脚本化故障和内存假传输，匹配结果不表示真机兼容。真实只读采集是另一个明确范围确认的 CLI 分支，没有接入界面，本阶段没有执行。它拟采集机型/iOS 构建、布局、网格和带卸载占位的 User/System 应用元数据；运行前需另行明确授权与范围。
+
+证据包和报告都可能含个人应用及布局信息，只保存在本地。默认报告目录为资料目录中的 `preflight_reports/`；原始证据可由用户选择路径保存，界面默认查找 `evidence/`。这些文件不是可恢复到手机的备份。格式与边界见 [证据与预检契约](_workspace/02_contracts/evidence-preflight.contract.md)，验证见 [独立验收](_workspace/07_preflight-qa.md)。
+
 ## 支持编辑的普通布局
 
 1. 在 Finder（访达）中双击 `dist/HomeSpread.app`。程序包含 Python 和 Qt，不需要另装 Python、iTunes 或 Apple Devices。
@@ -56,6 +74,7 @@
 | 内容 | 位置 |
 |---|---|
 | 备份、日志和设置 | `~/Library/Application Support/HomeSpread/` |
+| 只读证据与预检报告 | `.hsevidence` 与 `.hspreflight`；报告默认位于 `preflight_reports/` |
 | 离线草稿 | 资料目录中的 `drafts/` 或保存时选择的目录；扩展名 `.hsdraft` |
 | 每台设备的备份 | `backups/<设备标识的 SHA-256>/` |
 | 新建的本地设备配对凭据 | `~/Library/Application Support/HomeSpread/pairing/` |
@@ -91,6 +110,8 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest -q
 `.app` 使用本地临时签名（ad-hoc），未经过 Apple Developer ID 签名或公证。它用于这台电脑上的本地运行；向其他电脑分发前需另行处理签名、公证及适配验证。无需关闭 Gatekeeper 或 SIP。
 
 ## 验证边界
+
+`mac.zh.4` 完整回归为 609 项测试、543 项子测试通过。证据、预检和假设备模拟使用合成数据与本地文件验证，详见 [预检验收](_workspace/07_preflight-qa.md)。本阶段未运行真实 USB 采集，也未执行手机写入。
 
 `mac.zh.3` 源码验证为 431 项测试、439 项子测试通过。离线草稿的保存、重放、撤销/重做、差异显示和设备隔离见 [离线草稿验收](_workspace/06_offline-draft-qa.md)。纯编辑规则从研究阶段提升到 `ipsm.draft_rules`，本机文件层为 `ipsm.drafts`；不包含协议发送或写入能力。
 

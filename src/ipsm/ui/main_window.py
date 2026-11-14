@@ -533,6 +533,26 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(tr("Draft saved locally: {name}. The iPhone was not changed.").format(name=Path(path).name))
         return True
 
+    def create_preflight_report(self, evidence=None) -> dict:
+        if self.draft is None or self.worker.busy:
+            raise ValueError(tr("Open an offline draft before generating a preflight report."))
+        from ..preflight import build_preflight_report
+        return build_preflight_report(self.draft, evidence)
+
+    def _preflight_report(self) -> None:
+        if self.draft is None or self.worker.busy:
+            return
+        from .preflight_dialog import PreflightDialog
+        try:
+            PreflightDialog(self.draft, self.root, self).exec()
+        except (ValueError, OSError, TypeError) as exc:
+            box = QMessageBox(self)
+            box.setWindowTitle(tr("Preflight report error"))
+            box.setTextFormat(Qt.TextFormat.PlainText)
+            box.setIcon(QMessageBox.Icon.Warning)
+            box.setText(self._draft_error(exc))
+            box.exec()
+
     def set_draft_view(self, view: str) -> None:
         if view not in ("original", "draft"):
             raise ValueError("Unknown draft view")
@@ -759,6 +779,8 @@ class MainWindow(QMainWindow):
         self.act_end_draft.triggered.connect(self.end_draft)
         self.act_swap_draft = QAction(tr("Swap selected apps"), self)
         self.act_swap_draft.triggered.connect(self._swap_draft_apps)
+        self.act_preflight = QAction(tr("Draft preflight report"), self)
+        self.act_preflight.triggered.connect(self._preflight_report)
 
         bar.addAction(self.act_load)
         bar.addAction(self.act_open)
@@ -939,6 +961,7 @@ class MainWindow(QMainWindow):
             draft_views.addWidget(button)
         draft_box.addLayout(draft_views)
         draft_box.addWidget(draft_button("swap", self.act_swap_draft))
+        draft_box.addWidget(draft_button("preflight", self.act_preflight))
         self.draft_editor_controls.hide()
         side_box.addWidget(self.draft_editor_controls)
         side_box.addWidget(self.change_head)
@@ -978,6 +1001,7 @@ class MainWindow(QMainWindow):
         log.info("언어를 바꿨다: %s", code)
 
     def retranslate(self) -> None:
+        self.act_preflight.setText(tr("Draft preflight report"))
         self.act_compatibility.setText(tr("Write compatibility test"))
         """언어가 바뀌면 창의 말을 전부 다시 칠한다.
 
@@ -1241,6 +1265,7 @@ class MainWindow(QMainWindow):
         self.act_start_draft.setToolTip(self._draft_start_error or tr("Create a local draft from this backup. No iPhone connection is made."))
         self.act_open_draft.setEnabled(not busy)
         self.act_save_draft.setEnabled(self.draft is not None and not busy)
+        self.act_preflight.setEnabled(self.draft is not None and not busy)
         self.act_end_draft.setEnabled(self.draft is not None and not busy)
         self.act_swap_draft.setEnabled(self._draft_swap_intent() is not None and not busy)
         self.act_swap_draft.setToolTip(tr("Select two ordinary apps on the same logical page, then choose Swap selected apps."))

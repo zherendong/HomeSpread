@@ -18,9 +18,9 @@ VERSION_MINOR = 0
 VERSION_PATCH = 22
 
 # 빌드 시각. 소스에서 바로 실행하면 빌드한 적이 없으므로 비어 있다.
-BUILD_STAMP = "2026-11-13 offline draft editing"
+BUILD_STAMP = "2026-11-13 local evidence and preflight reports"
 
-VERSION_TEXT = f"v{VERSION_MAJOR:02d}.{VERSION_MINOR:02d}.{VERSION_PATCH:02d}-mac.zh.3"
+VERSION_TEXT = f"v{VERSION_MAJOR:02d}.{VERSION_MINOR:02d}.{VERSION_PATCH:02d}-mac.zh.4"
 VERSION_TUPLE = (VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH)
 
 

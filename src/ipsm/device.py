@@ -50,6 +50,90 @@ class DeviceError(Exception):
         return f"{self.message} → {self.action}"
 
 
+class ReadOnlyEvidenceAdapter:
+    """Narrow, explicitly invoked evidence reader; no write API is exposed.
+
+    SDK connection initialization reads lockdown metadata internally. Only the
+    declared identity whitelist is retained, and fresh per-key identity reads
+    bracket collection. Pairing is validated, never newly created by this path.
+    Merely constructing/importing this adapter does not connect to a device.
+    """
+
+    _PARTS = frozenset({"identity_before", "layout_v2_before", "metrics", "apps_user",
+                        "apps_system", "layout_v2_after", "identity_after", "layout_v3"})
+    _ATTRIBUTES = ("CFBundleIdentifier", "ApplicationType", "CFBundleDisplayName",
+                   "CFBundleName", "IsDemotedApp", "SBAppTags")
+
+    def __init__(self) -> None:
+        self._lockdown = None
+        self._usbmux_address = "127.0.0.1:27015" if sys.platform == "win32" else "/var/run/usbmuxd"
+
+    async def _ready(self):
+        if self._lockdown is not None:
+            return self._lockdown
+        # Do not use the ordinary bridge helper, whose normal pairing flow may
+        # create trust. This evidence path requires an already trusted USB phone.
+        # Pin the local service instead of accepting an environment redirect.
+        devices = await usbmux.list_devices(usbmux_address=self._usbmux_address)
+        serials = {str(d.serial) for d in devices if d.connection_type == "USB" and d.serial}
+        if len(serials) != 1:
+            raise DeviceError(tr("Evidence collection requires exactly one trusted USB iPhone."),
+                              tr("Connect only the intended trusted iPhone and retry the read-only command."))
+        pairing_dir = data_root() / "pairing"
+        private_directory(pairing_dir)
+        lockdown = await create_using_usbmux(
+            serial=next(iter(serials)), label=product.NAME, connection_type="USB",
+            autopair=False, pairing_records_cache_folder=pairing_dir,
+            usbmux_address=self._usbmux_address,
+        )
+        self._lockdown = lockdown
+        if not getattr(lockdown, "paired", False):
+            await self.close()
+            raise DeviceError(tr("The iPhone does not have an existing trusted session."),
+                              tr("Complete trust in Finder before explicitly running evidence collection."))
+        return lockdown
+
+    async def read(self, part: str) -> Any:
+        if part not in self._PARTS:
+            raise ValueError("Read-only evidence query is not on the allowlist")
+        lockdown = await self._ready()
+        if part.startswith("identity_"):
+            # These are fresh requests, not the all_values cache from connect().
+            identifier = await lockdown.get_value(key="UniqueDeviceID")
+            model = await lockdown.get_value(key="ProductType")
+            version = await lockdown.get_value(key="ProductVersion")
+            build = await lockdown.get_value(key="BuildVersion")
+            if not isinstance(identifier, str) or not identifier:
+                raise ValueError("Missing device identity")
+            device_key = hashlib.sha256(identifier.replace("-", "").lower().encode("ascii")).hexdigest()
+            return {"device_key": device_key, "product_type": model, "ios_version": version,
+                    "build_version": build, "transport": "USB"}
+        if part in ("apps_user", "apps_system"):
+            application_type = "User" if part == "apps_user" else "System"
+            async with InstallationProxyService(lockdown=lockdown) as proxy:
+                result = await proxy.lookup({"ApplicationType": application_type,
+                                             "ShowPlaceholders": True,
+                                             "ReturnAttributes": list(self._ATTRIBUTES)})
+            if not isinstance(result, dict):
+                raise ValueError("Installed-app query did not return LookupResult")
+            if any(not isinstance(identifier, str) or not identifier or not isinstance(info, dict)
+                   for identifier, info in result.items()):
+                raise ValueError("Installed-app query returned a malformed entry")
+            # Keep unknown/missing requested values absent, rather than claiming
+            # that missing placeholder flags mean an app is fully installed.
+            return {identifier: {key: value for key, value in info.items() if key in self._ATTRIBUTES}
+                    for identifier, info in result.items()}
+        async with SpringBoardServicesService(lockdown=lockdown) as service:
+            if part == "metrics":
+                return await service.get_homescreen_icon_metrics()
+            return await service.get_icon_state(format_version="3" if part == "layout_v3" else "2")
+
+    async def close(self) -> None:
+        lockdown, self._lockdown = self._lockdown, None
+        if lockdown is not None:
+            await lockdown.close()
+
+
 # 예외를 사용자 언어로 옮기는 표. 새 실패 유형을 만나면 여기에 추가한다 —
 # 분기를 코드 곳곳에 흩뿌리면 어떤 실패가 안내 없이 새는지 알 수 없게 된다.
 _TRANSLATIONS: list[tuple[type[BaseException], str, str]] = [
